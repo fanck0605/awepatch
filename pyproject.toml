@@ -1,0 +1,49 @@
+[build-system]
+requires = ["uv-build>=0.9.8,<0.10.0"]
+build-backend = "uv_build"
+
+[project]
+name = "awepatch"
+version = "0.0.1"
+description = "Awesome Patch"
+readme = "README.md"
+authors = [
+    { name = "Chuck Fan", email = "fanck0605@qq.com" }
+]
+requires-python = ">=3.10"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pydantic>=2.12.5",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.10",
+]
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+    # pydocstyle
+    "D3",
+    "D4",
+    # flake8-future-annotations
+    "FA",
+    # flake8-type-checking
+    "TC",
+]
+
+[tool.ruff.format]
+# Enable reformatting of code snippets in docstrings.
+docstring-code-format = true
