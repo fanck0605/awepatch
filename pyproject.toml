@@ -1,24 +1,53 @@
 [build-system]
-requires = ["uv-build>=0.9.8,<0.10.0"]
-build-backend = "uv_build"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [project]
 name = "awepatch"
-version = "0.0.1"
+dynamic = ["version"]
 description = "Awesome Patch"
 readme = "README.md"
 authors = [
     { name = "Chuck Fan", email = "fanck0605@qq.com" }
 ]
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Utilities",
+]
 dependencies = []
 
 [dependency-groups]
 dev = [
     "pydantic>=2.12.5",
+    "pyright>=1.1.407",
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.10",
+]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/awepatch/_version.py"
+
+[tool.ruff]
+# In addition to the standard set of exclusions, omit all tests, plus a specific file.
+extend-exclude = [
+    "src/awepatch/_version.py",
 ]
 
 [tool.ruff.lint]

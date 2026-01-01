@@ -14,7 +14,11 @@ wheels/
 .coverage
 .tox/
 .ruff_cache/
+htmlcov/
 
 # IDEs
 .vscode/
 .idea/
+
+# Version file
+src/awepatch/_version.py

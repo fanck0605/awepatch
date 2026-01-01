@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Literal
 
+from awepatch._version import __commit_id__, __version__, __version_tuple__
 from awepatch.utils import (
     ast_patch,
     get_origin_function,
@@ -56,4 +57,9 @@ def patch_callable(
         func.__code__ = raw_func_code
 
 
-__all__ = ("patch_callable",)
+__all__ = (
+    "__commit_id__",
+    "__version__",
+    "__version_tuple__",
+    "patch_callable",
+)

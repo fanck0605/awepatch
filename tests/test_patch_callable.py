@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from ast import TypeAlias
 from functools import partial, wraps
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
