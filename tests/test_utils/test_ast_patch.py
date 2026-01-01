@@ -26,6 +26,21 @@ def test_ast_patch_function() -> None:
     )
 
 
+def test_ast_patch_function_remove() -> None:
+    def function_to_patch(x: int) -> int:
+        x = x + 10
+        return x
+
+    res_ast_obj = ast_patch(function_to_patch, [Patch("x = x + 10", "", "replace")])
+    res_str = ast.unparse(res_ast_obj)
+
+    assert (
+        res_str
+        == r"""def function_to_patch(x: int) -> int:
+    return x"""
+    )
+
+
 def test_ast_patch_one_line_decorator() -> None:
     @classmethod
     def function_to_patch(cls, x: int) -> int:  # type: ignore
