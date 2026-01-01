@@ -19,7 +19,7 @@ def test_load_func_code_with_default() -> None:
 
     fn_with_default_ast = ast.parse("".join(get_source_lines(fn_with_default)))
 
-    fn_with_default_co = load_function_code(fn_with_default_ast)
+    fn_with_default_co = load_function_code(fn_with_default_ast.body[0])  # pyright: ignore[reportArgumentType]
     assert fn_with_default_co.co_name == fn_with_default.__name__
     fn_with_default.__code__ = fn_with_default_co
     assert fn_with_default(1) == 5
@@ -34,7 +34,7 @@ def test_load_func_code_with_nested() -> None:
 
     fn_with_nested_ast = ast.parse("".join(get_source_lines(fn_with_nested)))
 
-    fn_with_nested_co = load_function_code(fn_with_nested_ast)
+    fn_with_nested_co = load_function_code(fn_with_nested_ast.body[0])  # pyright: ignore[reportArgumentType]
     assert fn_with_nested_co.co_name == fn_with_nested.__name__
     fn_with_nested.__code__ = fn_with_nested_co
     assert fn_with_nested(10) == 15
@@ -46,7 +46,7 @@ def test_load_func_code_with_lambda() -> None:
 
     fn_with_lambda_ast = ast.parse("".join(get_source_lines(fn_with_lambda)))
 
-    fn_with_lambda_co = load_function_code(fn_with_lambda_ast)
+    fn_with_lambda_co = load_function_code(fn_with_lambda_ast.body[0])  # pyright: ignore[reportArgumentType]
     assert fn_with_lambda_co.co_name == fn_with_lambda.__name__
     fn_with_lambda.__code__ = fn_with_lambda_co
     assert fn_with_lambda(y=9) == 14

@@ -40,7 +40,10 @@ def patch_callable(
 
     # Patch the function's AST
     patched_func_ast = ast_patch(raw_func_code, patches)
-    patched_func_code = load_function_code(patched_func_ast)
+    patched_func_code = load_function_code(
+        patched_func_ast,
+        origin=f"{raw_func_code.co_filename}::{raw_func_code.co_qualname}",
+    )
 
     # replace the function's code object
     func.__code__ = patched_func_code
