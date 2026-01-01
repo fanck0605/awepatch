@@ -229,6 +229,55 @@ def _attach_stmts(
         stmts[index + 1 : index + 1] = patches["after"]
 
 
+def _compile_patches(
+    source_lines: list[str],
+    patches: list[Patch],
+) -> dict[int, dict[Literal["before", "after", "replace"], list[ast.stmt]]]:
+    """Compile patches into a dictionary mapping line numbers to mode-specific
+    statements.
+
+    Args:
+        source_lines: The source code lines of the function
+        patches: List of Patch objects to compile
+
+    Returns:
+        Dictionary mapping line numbers to dictionaries of mode->statements
+
+    Raises:
+        ValueError: If duplicate modes on same line or conflicting patches
+
+    """
+    compiled_patches: defaultdict[
+        int, dict[Literal["before", "after", "replace"], list[ast.stmt]]
+    ] = defaultdict(dict)
+
+    for patch in patches:
+        # Get target line number
+        target_lineno = find_line_number(source_lines, patch.pattern)
+
+        # Prepare replacement statements
+        repl_stmts = (
+            load_stmts(patch.repl) if isinstance(patch.repl, str) else patch.repl
+        )
+
+        # Check for duplicate mode on the same line
+        if patch.mode in compiled_patches[target_lineno]:
+            raise ValueError(
+                f"Multiple '{patch.mode}' patches on the same line {target_lineno}"
+            )
+
+        # Check for conflicting patches: replace cannot be combined with other modes
+        existing_modes = compiled_patches[target_lineno]
+        if existing_modes and (patch.mode == "replace" or "replace" in existing_modes):
+            raise ValueError(
+                f"Cannot combine 'replace' with other modes on line {target_lineno}"
+            )
+
+        compiled_patches[target_lineno][patch.mode] = repl_stmts
+
+    return compiled_patches
+
+
 def ast_patch(
     func: CodeType | FunctionType,
     patches: list[Patch],
@@ -259,32 +308,7 @@ def ast_patch(
     ast_code.body[0].decorator_list.clear()
 
     # 4. Pre-compile all patches: find line numbers and prepare replacement statements
-    compiled_patches: defaultdict[
-        int, dict[Literal["before", "after", "replace"], list[ast.stmt]]
-    ] = defaultdict(dict)
-    for patch in patches:
-        # Get target line number
-        target_lineno = find_line_number(source_lines, patch.pattern)
-
-        # Prepare replacement statements
-        repl_stmts = (
-            load_stmts(patch.repl) if isinstance(patch.repl, str) else patch.repl
-        )
-
-        # Check for duplicate mode on the same line
-        if patch.mode in compiled_patches[target_lineno]:
-            raise ValueError(
-                f"Multiple '{patch.mode}' patches on the same line {target_lineno}"
-            )
-
-        # Check for conflicting patches: replace cannot be combined with other modes
-        existing_modes = compiled_patches[target_lineno]
-        if existing_modes and (patch.mode == "replace" or "replace" in existing_modes):
-            raise ValueError(
-                f"Cannot combine 'replace' with other modes on line {target_lineno}"
-            )
-
-        compiled_patches[target_lineno][patch.mode] = repl_stmts
+    compiled_patches = _compile_patches(source_lines, patches)
 
     # 5. Apply all compiled patches (each line number only traverses AST once)
     for target_lineno, mode_patches in compiled_patches.items():
