@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import re
+from dataclasses import dataclass
 
 import pytest
 
@@ -23,6 +24,64 @@ def test_ast_patch_function() -> None:
         == r"""def function_to_patch(x: int) -> int:
     x = x + 20
     return x"""
+    )
+
+
+def test_ast_patch_function_dataclass() -> None:
+    @dataclass
+    class Data:
+        value: int
+        matched: bool
+
+    def function_to_patch(x: int) -> Data:
+        a = Data(
+            value=x,
+            matched=False,
+        )
+        return a
+
+    res_ast_obj = ast_patch(function_to_patch, [Patch("value=x,", "a = x", "after")])
+    res_str = ast.unparse(res_ast_obj)
+
+    assert (
+        res_str
+        == r"""def function_to_patch(x: int) -> Data:
+    a = Data(value=x, matched=False)
+    a = x
+    return a"""
+    )
+
+
+def test_ast_patch_function_complex() -> None:
+    @dataclass
+    class Data:
+        value: int
+        matched: bool
+
+    def function_to_patch(x: int) -> list[Data]:
+        ll: list[Data] = []
+        for i in range(5):
+            ll.append(
+                Data(
+                    value=x + i,
+                    matched=False,
+                )
+            )
+        return ll
+
+    res_ast_obj = ast_patch(
+        function_to_patch, [Patch("value=x + i,", "a = x", "after")]
+    )
+    res_str = ast.unparse(res_ast_obj)
+
+    assert (
+        res_str
+        == r"""def function_to_patch(x: int) -> list[Data]:
+    ll: list[Data] = []
+    for i in range(5):
+        ll.append(Data(value=x + i, matched=False))
+        a = x
+    return ll"""
     )
 
 
@@ -719,4 +778,39 @@ def test_multiple_patches_many_lines() -> None:
             print(f'count: {count}')
     print(f'final total: {total}')
     return total"""
+    )
+
+
+def test_multiline_multiple_patches() -> None:
+    """Test applying patches to both nested and top-level statements."""
+
+    def function_to_patch(x: int) -> int:
+        if x > 0:
+            x = x + 10
+        x = x * 2
+        return x
+
+    res_ast_obj = ast_patch(
+        function_to_patch,
+        [
+            Patch(
+                "x = x + 10", "x = x + 20\nx = x + 20\nx = x + 20\nx = x + 20", "after"
+            ),
+            Patch("x = x * 2", "x = x * 3", "after"),
+        ],
+    )
+    res_str = ast.unparse(res_ast_obj)
+
+    assert (
+        res_str
+        == r"""def function_to_patch(x: int) -> int:
+    if x > 0:
+        x = x + 10
+        x = x + 20
+        x = x + 20
+        x = x + 20
+        x = x + 20
+    x = x * 2
+    x = x * 3
+    return x"""
     )
