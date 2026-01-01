@@ -88,6 +88,15 @@ def load_stmts(code: str) -> list[ast.stmt]:
     return ast.parse(code).body
 
 
+def _remove_source_indent(lines: list[str]) -> list[str]:
+    """Remove common leading indentation from code lines."""
+
+    indent = len(lines[0]) - len(lines[0].lstrip())
+    # for blank lines indent may be larger than line length, so we replace with '\n'
+    lines = [line[indent:] if len(line) > indent else "\n" for line in lines]
+    return lines
+
+
 def get_source_lines(
     obj: CodeType | FunctionType,
 ) -> list[str]:
@@ -99,12 +108,7 @@ def get_source_lines(
 
     """
     source_lines = inspect.getsourcelines(obj)[0]
-
-    # remove common leading indentation
-    indent = len(source_lines[0]) - len(source_lines[0].lstrip())
-    source_lines = [line[indent:] for line in source_lines]
-
-    return source_lines
+    return _remove_source_indent(source_lines)
 
 
 def _find_function_code(module: CodeType) -> CodeType:

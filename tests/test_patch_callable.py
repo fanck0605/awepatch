@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from functools import partial, wraps
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
@@ -56,6 +57,31 @@ def test_patch_function_mode() -> None:
         [Patch("a.append(3)", "a.append(4)", "after")],
     ):
         assert fn() == [3, 4]
+
+
+def test_patch_function_with_blank_lines() -> None:
+    # do not remove blank lines in `fn` function body
+    def fn() -> list[int]:
+        a: list[int] = []
+
+        a.append(3)
+        return a
+
+    assert (
+        inspect.getsource(fn)
+        == """    def fn() -> list[int]:
+        a: list[int] = []
+
+        a.append(3)
+        return a
+"""
+    )
+
+    with patch_callable(
+        fn,
+        [Patch("a.append(3)", "a.append(4)", "replace")],
+    ):
+        assert fn() == [4]
 
 
 def test_patch_method() -> None:
