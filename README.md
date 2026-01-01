@@ -16,6 +16,7 @@
 - 🎯 **AST-Based Manipulation**: Clean and precise code modifications using AST
 - 🔄 **Automatic Restoration**: Context manager support for temporary patches
 - 🎭 **Multiple Patch Modes**: Insert code before, after, or replace existing statements
+- 📦 **Batch Patching**: Apply multiple patches to a function in a single call
 - 🧩 **Pattern Matching**: Use string or regex patterns to locate code to patch
 - 🔗 **Decorator Support**: Works with decorated functions, class methods, and static methods
 - ⚡ **Type-Safe**: Full type hints support with strict type checking
@@ -37,7 +38,7 @@ uv pip install awepatch
 ### Basic Function Patching
 
 ```python
-from awepatch import patch_callable
+from awepatch import patch_callable, Patch
 
 def greet(name: str) -> str:
     message = f"Hello, {name}!"
@@ -46,9 +47,7 @@ def greet(name: str) -> str:
 # Temporarily patch the function
 with patch_callable(
     greet,
-    pattern='message = f"Hello, {name}!"',
-    repl='message = f"Hi there, {name}!"',
-    mode="replace"
+    [Patch('message = f"Hello, {name}!"', 'message = f"Hi there, {name}!"', "replace")]
 ):
     print(greet("World"))  # Output: Hi there, World!
 
@@ -65,11 +64,13 @@ print(greet("World"))  # Output: Hello, World!
 Replace existing code with new code:
 
 ```python
+from awepatch import patch_callable, Patch
+
 def calculate(x: int) -> int:
     x = x * 2
     return x
 
-with patch_callable(calculate, "x = x * 2", "x = x * 3", mode="replace"):
+with patch_callable(calculate, [Patch("x = x * 2", "x = x * 3", "replace")]):
     print(calculate(5))  # Output: 15
 ```
 
@@ -78,12 +79,14 @@ with patch_callable(calculate, "x = x * 2", "x = x * 3", mode="replace"):
 Insert code before the matched statement:
 
 ```python
+from awepatch import patch_callable, Patch
+
 def process() -> list[int]:
     items: list[int] = []
     items.append(3)
     return items
 
-with patch_callable(process, "items.append(3)", "items.append(1)", mode="before"):
+with patch_callable(process, [Patch("items.append(3)", "items.append(1)", "before")]):
     print(process())  # Output: [1, 3]
 ```
 
@@ -92,12 +95,14 @@ with patch_callable(process, "items.append(3)", "items.append(1)", mode="before"
 Insert code after the matched statement:
 
 ```python
+from awepatch import patch_callable, Patch
+
 def process() -> list[int]:
     items: list[int] = []
     items.append(3)
     return items
 
-with patch_callable(process, "items.append(3)", "items.append(5)", mode="after"):
+with patch_callable(process, [Patch("items.append(3)", "items.append(5)", "after")]):
     print(process())  # Output: [3, 5]
 ```
 
@@ -106,39 +111,45 @@ with patch_callable(process, "items.append(3)", "items.append(5)", mode="after")
 #### Instance Methods
 
 ```python
+from awepatch import patch_callable, Patch
+
 class Calculator:
     def add(self, x: int, y: int) -> int:
         result = x + y
         return result
 
 calc = Calculator()
-with patch_callable(calc.add, "result = x + y", "result = x + y + 1", mode="replace"):
+with patch_callable(calc.add, [Patch("result = x + y", "result = x + y + 1", "replace")]):
     print(calc.add(2, 3))  # Output: 6
 ```
 
 #### Class Methods
 
 ```python
+from awepatch import patch_callable, Patch
+
 class MathUtils:
     @classmethod
     def multiply(cls, x: int, y: int) -> int:
         result = x * y
         return result
 
-with patch_callable(MathUtils.multiply, "result = x * y", "result = x * y * 2", mode="replace"):
+with patch_callable(MathUtils.multiply, [Patch("result = x * y", "result = x * y * 2", "replace")]):
     print(MathUtils.multiply(3, 4))  # Output: 24
 ```
 
 #### Static Methods
 
 ```python
+from awepatch import patch_callable, Patch
+
 class Helper:
     @staticmethod
     def format_name(name: str) -> str:
         result = name.upper()
         return result
 
-with patch_callable(Helper.format_name, "result = name.upper()", "result = name.lower()", mode="replace"):
+with patch_callable(Helper.format_name, [Patch("result = name.upper()", "result = name.lower()", "replace")]):
     print(Helper.format_name("HELLO"))  # Output: hello
 ```
 
@@ -148,17 +159,18 @@ You can use both string literals and regular expressions for pattern matching:
 
 ```python
 import re
+from awepatch import patch_callable, Patch
 
 def process_data(value: int) -> int:
     value = value + 10
     return value
 
 # Using string pattern
-with patch_callable(process_data, "value = value + 10", "value = value + 20", mode="replace"):
+with patch_callable(process_data, [Patch("value = value + 10", "value = value + 20", "replace")]):
     print(process_data(5))  # Output: 25
 
 # Using regex pattern
-with patch_callable(process_data, re.compile(r"value = value \+ \d+"), "value = value + 30", mode="replace"):
+with patch_callable(process_data, [Patch(re.compile(r"value = value \+ \d+"), "value = value + 30", "replace")]):
     print(process_data(5))  # Output: 35
 ```
 
@@ -168,26 +180,63 @@ For more complex modifications, you can provide AST statements directly:
 
 ```python
 import ast
-from awepatch import patch_callable
+from awepatch import patch_callable, Patch
 
 def complex_function(x: int) -> int:
     x = x * 2
     return x
 
-# Create custom AST statements
-new_statements = [
-    ast.Assign(
-        targets=[ast.Name(id='x', ctx=ast.Store())],
-        value=ast.BinOp(
-            left=ast.Name(id='x', ctx=ast.Load()),
-            op=ast.Mult(),
-            right=ast.Constant(value=5)
-        )
-    )
-]
+# Parse replacement code as AST
+new_statements = ast.parse("x = x * 5").body
 
-with patch_callable(complex_function, "x = x * 2", new_statements, mode="replace"):
+with patch_callable(complex_function, [Patch("x = x * 2", new_statements, "replace")]):
     print(complex_function(3))  # Output: 15
+```
+
+### Multiple Patches
+
+Apply multiple patches to a function in a single call:
+
+```python
+from awepatch import patch_callable, Patch
+
+def calculate(x: int, y: int) -> int:
+    x = x + 10
+    y = y * 2
+    result = x + y
+    return result
+
+# Apply multiple patches at once
+with patch_callable(
+    calculate,
+    [
+        Patch("x = x + 10", "print('processing x')", "before"),
+        Patch("y = y * 2", "y = y * 3", "replace"),
+        Patch("result = x + y", "print(f'result: {result}')", "after"),
+    ]
+):
+    print(calculate(5, 10))
+    # Output:
+    # processing x
+    # result: 45
+    # 45
+
+# You can also apply multiple patches to the same line (before/after modes)
+def process(x: int) -> int:
+    x = x + 10
+    return x
+
+with patch_callable(
+    process,
+    [
+        Patch("x = x + 10", "print('before')", "before"),
+        Patch("x = x + 10", "print('after')", "after"),
+    ]
+):
+    result = process(5)
+    # Output:
+    # before
+    # after
 ```
 
 ## Use Cases
@@ -207,29 +256,40 @@ with patch_callable(complex_function, "x = x * 2", new_statements, mode="replace
 
 ## API Reference
 
+### `Patch`
+
+```python
+class Patch(NamedTuple):
+    """A single patch operation.
+    
+    Attributes:
+        pattern: The pattern to search for in the source code
+        repl: The replacement code or AST statements
+        mode: The mode of patching (before/after/replace), defaults to "before"
+    """
+    pattern: str | re.Pattern[str]
+    repl: str | list[ast.stmt]
+    mode: Literal["before", "after", "replace"] = "before"
+```
+
 ### `patch_callable`
 
 ```python
 @contextmanager
 def patch_callable(
     func: Callable[..., Any],
-    pattern: str | re.Pattern[str],
-    repl: str | list[ast.stmt],
-    *,
-    mode: Literal["before", "after", "replace"] = "before",
+    patches: list[Patch],
 ) -> Iterator[None]:
     """
     Context manager to patch a callable's code object using AST manipulation.
 
     Args:
         func: The function to patch
-        pattern: Pattern to search for in the function's source code
-        repl: Replacement code (string) or AST statements
-        mode: Patching mode - "before", "after", or "replace"
+        patches: List of Patch objects for applying multiple patches
 
     Raises:
         TypeError: If func is not callable or is a lambda function
-        ValueError: If pattern is not found or matches multiple lines
+        ValueError: If pattern is not found, matches multiple lines, or patches conflict
     """
 ```
 

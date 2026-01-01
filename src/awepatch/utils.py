@@ -1,15 +1,31 @@
 from __future__ import annotations
 
 import ast
+from collections import defaultdict
 import inspect
 import re
 import sys
 from functools import partial
 from types import CodeType, FunctionType
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+class Patch(NamedTuple):
+    """A single patch operation.
+
+    Attributes:
+        pattern: The pattern to search for in the source code.
+        repl: The replacement code or AST statements.
+        mode: The mode of patching (before/after/replace).
+
+    """
+
+    pattern: str | re.Pattern[str]
+    repl: str | list[ast.stmt]
+    mode: Literal["before", "after", "replace"] = "before"
 
 
 def get_origin_function(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -47,7 +63,7 @@ def find_line_number(lines: list[str], pattern: str | re.Pattern[str]) -> int:
         raise TypeError(f"Unknown pattern type: {type(pattern)}")
 
     lineno = None
-    for idx, line in enumerate(lines):
+    for index, line in enumerate(lines):
         line = line.strip()
 
         if (isinstance(pattern, str) and line == pattern) or (
@@ -55,7 +71,7 @@ def find_line_number(lines: list[str], pattern: str | re.Pattern[str]) -> int:
         ):
             if lineno is not None:
                 raise ValueError(f"Multiple matches found for pattern: {pattern}")
-            lineno = idx + 1
+            lineno = index + 1
 
     if lineno is None:
         raise ValueError(f"No match found for pattern: {pattern}")
@@ -122,16 +138,14 @@ def load_function_code(func: ast.Module) -> CodeType:
 def _modify_ast_node(
     ast_node: ast.AST,
     target: int,
-    repl: list[ast.stmt],
-    mode: Literal["before", "after", "replace"],
+    patches: dict[Literal["before", "after", "replace"], list[ast.stmt]],
 ) -> bool:
     """Find and modify the statement at the specified line number in the AST.
 
     Args:
         ast_node: The AST node to traverse
         target: The target line number
-        repl: The list of replacement statements
-        mode: The modification mode (before/after/replace)
+        patches: Dictionary mapping modes to their replacement statements
 
     Returns:
         True if the target statement was found and modified, False otherwise
@@ -140,11 +154,11 @@ def _modify_ast_node(
     for _, field in ast.iter_fields(ast_node):
         if isinstance(field, list):
             # Search for target statement in list fields
-            if _modify_ast_list(field, target, repl, mode):  # pyright: ignore[reportUnknownArgumentType]
+            if _modify_ast_list(field, target, patches):  # pyright: ignore[reportUnknownArgumentType]
                 return True
         elif isinstance(field, ast.AST):  # noqa: SIM102
             # Recursively process child nodes
-            if _modify_ast_node(field, target, repl, mode):
+            if _modify_ast_node(field, target, patches):
                 return True
 
     return False
@@ -153,32 +167,30 @@ def _modify_ast_node(
 def _modify_ast_list(
     ast_list: list[Any],
     target: int,
-    repl: list[ast.stmt],
-    mode: Literal["before", "after", "replace"],
+    patches: dict[Literal["before", "after", "replace"], list[ast.stmt]],
 ) -> bool:
     """Find and modify the target statement in a list of statements.
 
     Args:
         ast_list: The list of AST statements
         target: The target line number
-        repl: The list of replacement statements
-        mode: The modification mode (before/after/replace)
+        patches: Dictionary mapping modes to their replacement statements
 
     Returns:
         True if the target statement was found and modified, False otherwise
 
     """
-    for idx, item in enumerate(ast_list):
+    for index, item in enumerate(ast_list):
         if not isinstance(item, ast.AST):
             continue
 
         # First recursively check child nodes
-        if _modify_ast_node(item, target, repl, mode):
+        if _modify_ast_node(item, target, patches):
             return True
 
         # Check if current statement matches target line number
         if _is_target_stmt(item, target):
-            _insert_stmts(ast_list, idx, repl, mode)
+            _attach_stmts(ast_list, index, patches)
             return True
 
     return False
@@ -193,56 +205,91 @@ def _is_target_stmt(stmt: ast.AST, lineno: int) -> bool:
     )
 
 
-def _insert_stmts(
-    ast_list: list[Any],
-    idx: int,
-    stmts: list[ast.stmt],
-    mode: Literal["before", "after", "replace"],
+def _attach_stmts(
+    stmts: list[Any],
+    index: int,
+    patches: dict[Literal["before", "after", "replace"], list[ast.stmt]],
 ) -> None:
-    """Insert or replace statements at the specified position."""
-    if mode == "before":
-        ast_list[idx:idx] = stmts
-    elif mode == "after":
-        ast_list[idx + 1 : idx + 1] = stmts
-    elif mode == "replace":
-        ast_list[idx : idx + 1] = stmts
+    """Insert or replace statements at the specified position with multiple modes.
+
+    Applies patches in order: before, replace, after.
+    """
+    # Apply 'before' first
+    if "before" in patches:
+        stmts[index:index] = patches["before"]
+        index += len(patches["before"])  # Adjust index after insertion
+
+    # Apply 'replace' (which removes the original statement)
+    if "replace" in patches:
+        stmts[index : index + 1] = patches["replace"]
+        index += len(patches["replace"]) - 1  # Adjust for replacement
+
+    # Apply 'after' last
+    if "after" in patches:
+        stmts[index + 1 : index + 1] = patches["after"]
 
 
 def ast_patch(
     func: CodeType | FunctionType,
-    pattern: str | re.Pattern[str],
-    repl: str | list[ast.stmt],
-    *,
-    mode: Literal["before", "after", "replace"] = "before",
+    patches: list[Patch],
 ) -> ast.Module:
     """Patch the AST of a function or code object.
 
     Args:
         func (CodeType | FunctionType): The function or code object to patch.
-        pattern (str | re.Pattern[str]): The pattern to search for in the source code.
-        repl (str | list[ast.stmt]): The replacement code or AST statements.
-        mode (Literal["before", "after", "replace"], optional): The mode of patching.
-            Defaults to "before".
+        patches (list[Patch]): List of Patch objects for applying multiple patches.
 
     Returns:
         ast.Module: The modified AST module contains only one function definition.
 
     """
-    # 1. Get source code and target line number
+    # Validate arguments
+    if not patches:
+        raise ValueError("patches list cannot be empty")
+
+    # 1. Get source code
     source_lines = get_source_lines(func)
-    target_lineno = find_line_number(source_lines, pattern)
 
     # 2. Parse AST and validate
     ast_code = ast.parse("".join(source_lines))
     if len(ast_code.body) != 1 or not isinstance(ast_code.body[0], ast.FunctionDef):
         raise ValueError("Only single function definitions are supported")
 
-    # 3. Clear decorators and prepare replacement statements
+    # 3. Clear decorators
     ast_code.body[0].decorator_list.clear()
-    repl_stmts = load_stmts(repl) if isinstance(repl, str) else repl
 
-    # 4. Find and modify the target statement in the AST
-    if not _modify_ast_node(ast_code, target_lineno, repl_stmts, mode):
-        raise ValueError(f"No ast.stmt found for line number: {target_lineno}")
+    # 4. Pre-compile all patches: find line numbers and prepare replacement statements
+    compiled_patches: defaultdict[
+        int, dict[Literal["before", "after", "replace"], list[ast.stmt]]
+    ] = defaultdict(dict)
+    for patch in patches:
+        # Get target line number
+        target_lineno = find_line_number(source_lines, patch.pattern)
+
+        # Prepare replacement statements
+        repl_stmts = (
+            load_stmts(patch.repl) if isinstance(patch.repl, str) else patch.repl
+        )
+
+        # Check for duplicate mode on the same line
+        if patch.mode in compiled_patches[target_lineno]:
+            raise ValueError(
+                f"Multiple '{patch.mode}' patches on the same line {target_lineno}"
+            )
+
+        # Check for conflicting patches: replace cannot be combined with other modes
+        existing_modes = compiled_patches[target_lineno]
+        if existing_modes and (patch.mode == "replace" or "replace" in existing_modes):
+            raise ValueError(
+                f"Cannot combine 'replace' with other modes on line {target_lineno}"
+            )
+
+        compiled_patches[target_lineno][patch.mode] = repl_stmts
+
+    # 5. Apply all compiled patches (each line number only traverses AST once)
+    for target_lineno, mode_patches in compiled_patches.items():
+        # Find and modify the target statement in the AST with all modes at once
+        if not _modify_ast_node(ast_code, target_lineno, mode_patches):
+            raise ValueError(f"No ast.stmt found for line number: {target_lineno}")
 
     return ast_code

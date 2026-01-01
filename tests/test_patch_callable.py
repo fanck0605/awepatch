@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 import pytest
 
-from awepatch import patch_callable
+from awepatch import Patch, patch_callable
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -24,9 +24,7 @@ def test_patch_function_and_restore() -> None:
 
     with patch_callable(
         function_to_patch,
-        "x = x * 2",
-        "x = x * 3",
-        mode="replace",
+        [Patch("x = x * 2", "x = x * 3", "replace")],
     ):
         patched_result = function_to_patch(5)
         assert patched_result == 15
@@ -43,25 +41,19 @@ def test_patch_function_mode() -> None:
 
     with patch_callable(
         fn,
-        "a.append(3)",
-        "a.append(4)",
-        mode="replace",
+        [Patch("a.append(3)", "a.append(4)", "replace")],
     ):
         assert fn() == [4]
 
     with patch_callable(
         fn,
-        "a.append(3)",
-        "a.append(4)",
-        mode="before",
+        [Patch("a.append(3)", "a.append(4)", "before")],
     ):
         assert fn() == [4, 3]
 
     with patch_callable(
         fn,
-        "a.append(3)",
-        "a.append(4)",
-        mode="after",
+        [Patch("a.append(3)", "a.append(4)", "after")],
     ):
         assert fn() == [3, 4]
 
@@ -72,7 +64,9 @@ def test_patch_method() -> None:
             z += 1
             return z
 
-    with patch_callable(MyClass.method_to_patch, "z += 1", "z += 5", mode="replace"):
+    with patch_callable(
+        MyClass.method_to_patch, [Patch("z += 1", "z += 5", "replace")]
+    ):
         obj = MyClass()
         assert obj.method_to_patch(10) == 15
 
@@ -84,7 +78,7 @@ def test_patch_obj_method() -> None:
             return z
 
     obj = MyClass()
-    with patch_callable(obj.method_to_patch, "z += 1", "z += 5", mode="replace"):
+    with patch_callable(obj.method_to_patch, [Patch("z += 1", "z += 5", "replace")]):
         assert obj.method_to_patch(10) == 15
 
 
@@ -96,7 +90,7 @@ def test_patch_class_method() -> None:
             return z
 
     with patch_callable(
-        MyClass.class_method_to_patch, "z += 2", "z += 10", mode="replace"
+        MyClass.class_method_to_patch, [Patch("z += 2", "z += 10", "replace")]
     ):
         assert MyClass.class_method_to_patch(10) == 20
 
@@ -109,7 +103,7 @@ def test_patch_static_method() -> None:
             return z
 
     with patch_callable(
-        MyClass.static_method_to_patch, "z += 3", "z += 15", mode="replace"
+        MyClass.static_method_to_patch, [Patch("z += 3", "z += 15", "replace")]
     ):
         assert MyClass.static_method_to_patch(10) == 25
 
@@ -122,7 +116,9 @@ def test_patch_partial_function() -> None:
 
     partial_func = partial(function_to_patch, 5)
 
-    with patch_callable(partial_func, "return a + b", "return a * b", mode="replace"):
+    with patch_callable(
+        partial_func, [Patch("return a + b", "return a * b", "replace")]
+    ):
         assert partial_func(3) == 15  # 5 * 3
 
 
@@ -139,7 +135,7 @@ def test_wrapper_function() -> None:
         x += 4
         return x
 
-    with patch_callable(function_to_patch, "x += 4", "x += 10", mode="replace"):
+    with patch_callable(function_to_patch, [Patch("x += 4", "x += 10", "replace")]):
         assert function_to_patch(6) == 16
 
 
@@ -162,7 +158,7 @@ def test_partialed_wrapped_class_method() -> None:
     method_to_patch = wrapper(method_to_patch)
 
     assert MyClass.method_to_patch_123(10) == 12
-    with patch_callable(method_to_patch, "z += 2", "z += 8", mode="replace"):
+    with patch_callable(method_to_patch, [Patch("z += 2", "z += 8", "replace")]):
         assert method_to_patch() == 18
 
 
@@ -182,7 +178,9 @@ def test_wrapper_and_and_partial_class_method() -> None:
             return z
 
     assert MyClass.method_to_patch(10) == 12
-    with patch_callable(MyClass.method_to_patch, "z += 2", "z += 8", mode="replace"):
+    with patch_callable(
+        MyClass.method_to_patch, [Patch("z += 2", "z += 8", "replace")]
+    ):
         assert MyClass.method_to_patch(10) == 18
 
 
@@ -195,7 +193,7 @@ def test_wrap_by_function() -> None:
 
     assert method_to_patch(10) == 12
 
-    with patch_callable(method_to_patch, "z += 2", "z += 8", mode="replace"):
+    with patch_callable(method_to_patch, [Patch("z += 2", "z += 8", "replace")]):
         assert method_to_patch(10) == 18
 
 
@@ -206,6 +204,6 @@ def test_lambda_func() -> None:
 
     with (
         pytest.raises(TypeError, match="Cannot patch lambda functions"),
-        patch_callable(lambda_func, "x + 5", "x + 10", mode="replace"),
+        patch_callable(lambda_func, [Patch("x + 5", "x + 10", "replace")]),
     ):
         pass

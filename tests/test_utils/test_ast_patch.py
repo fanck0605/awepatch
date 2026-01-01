@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from awepatch.utils import ast_patch
+from awepatch.utils import Patch, ast_patch
 
 
 def test_ast_patch_function() -> None:
@@ -14,7 +14,7 @@ def test_ast_patch_function() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch, "x = x + 10", "x = x + 20", mode="replace"
+        function_to_patch, [Patch("x = x + 10", "x = x + 20", "replace")]
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -34,9 +34,7 @@ def test_ast_patch_one_line_decorator() -> None:
 
     res_ast_obj = ast_patch(
         function_to_patch,
-        "x = x + 10",
-        "x = x + 20",
-        mode="replace",
+        [Patch("x = x + 10", "x = x + 20", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -58,9 +56,7 @@ def test_ast_patch_function_multi_line_decorator() -> None:
 
     res_ast_obj = ast_patch(
         function_to_patch,
-        "x = x + 10",
-        "x = x + 20",
-        mode="replace",
+        [Patch("x = x + 10", "x = x + 20", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -79,7 +75,9 @@ def test_ast_patch_mode_before() -> None:
         x = x + 10
         return x
 
-    res_ast_obj = ast_patch(function_to_patch, "return x", "x = x * 2", mode="before")
+    res_ast_obj = ast_patch(
+        function_to_patch, [Patch("return x", "x = x * 2", "before")]
+    )
     res_str = ast.unparse(res_ast_obj)
 
     assert (
@@ -98,7 +96,9 @@ def test_ast_patch_mode_after() -> None:
         x = x + 10
         return x
 
-    res_ast_obj = ast_patch(function_to_patch, "x = x + 10", "x = x * 2", mode="after")
+    res_ast_obj = ast_patch(
+        function_to_patch, [Patch("x = x + 10", "x = x * 2", "after")]
+    )
     res_str = ast.unparse(res_ast_obj)
 
     assert (
@@ -119,9 +119,7 @@ def test_ast_patch_with_regex_pattern() -> None:
 
     res_ast_obj = ast_patch(
         function_to_patch,
-        re.compile(r"x = x \+ \d+"),
-        "x = x + 30",
-        mode="replace",
+        [Patch(re.compile(r"x = x \+ \d+"), "x = x + 30", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -142,7 +140,7 @@ def test_ast_patch_nested_statements() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch, "x = x + 10", "x = x + 20", mode="replace"
+        function_to_patch, [Patch("x = x + 10", "x = x + 20", "replace")]
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -166,7 +164,7 @@ def test_ast_patch_deeply_nested_statements() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch, "x = x + 5", "x = x + 10", mode="replace"
+        function_to_patch, [Patch("x = x + 5", "x = x + 10", "replace")]
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -190,9 +188,7 @@ def test_ast_patch_with_multiple_statements() -> None:
 
     res_ast_obj = ast_patch(
         function_to_patch,
-        "x = x + 10",
-        "y = x * 2\nx = y + 5",
-        mode="replace",
+        [Patch("x = x + 10", "y = x * 2\nx = y + 5", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -215,7 +211,9 @@ def test_ast_patch_with_ast_statements() -> None:
     # Create AST statements directly
     new_stmts = ast.parse("x = x + 50").body
 
-    res_ast_obj = ast_patch(function_to_patch, "x = x + 10", new_stmts, mode="replace")
+    res_ast_obj = ast_patch(
+        function_to_patch, [Patch("x = x + 10", new_stmts, "replace")]
+    )
     res_str = ast.unparse(res_ast_obj)
 
     assert (
@@ -234,7 +232,7 @@ def test_ast_patch_error_pattern_not_found() -> None:
         return x
 
     with pytest.raises(ValueError, match="No match found for pattern"):
-        ast_patch(function_to_patch, "x = x + 999", "x = x + 20", mode="replace")
+        ast_patch(function_to_patch, [Patch("x = x + 999", "x = x + 20", "replace")])
 
 
 def test_ast_patch_error_multiple_matches() -> None:
@@ -246,7 +244,7 @@ def test_ast_patch_error_multiple_matches() -> None:
         return x
 
     with pytest.raises(ValueError, match="Multiple matches found for pattern"):
-        ast_patch(function_to_patch, "x = x + 10", "x = x + 20", mode="replace")
+        ast_patch(function_to_patch, [Patch("x = x + 10", "x = x + 20", "replace")])
 
 
 def test_ast_patch_with_try_except() -> None:
@@ -260,7 +258,7 @@ def test_ast_patch_with_try_except() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch, "x = x + 10", "x = x + 20", mode="replace"
+        function_to_patch, [Patch("x = x + 10", "x = x + 20", "replace")]
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -284,7 +282,7 @@ def test_ast_patch_with_context_manager() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch, "x = x + 10", "x = x + 20", mode="replace"
+        function_to_patch, [Patch("x = x + 10", "x = x + 20", "replace")]
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -307,9 +305,7 @@ def test_ast_patch_multiline_statement() -> None:
     # Match the multiline statement
     res_ast_obj = ast_patch(
         function_to_patch,
-        "result = x + 10 + 20 + 30",
-        "result = x * 2",
-        mode="replace",
+        [Patch("result = x + 10 + 20 + 30", "result = x * 2", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -332,9 +328,7 @@ def test_ast_patch_for_loop() -> None:
 
     res_ast_obj = ast_patch(
         function_to_patch,
-        "total = total + item",
-        "total = total + item * 2",
-        mode="replace",
+        [Patch("total = total + item", "total = total + item * 2", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -357,7 +351,7 @@ def test_ast_patch_while_loop() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch, "x = x + 10", "x = x + 20", mode="replace"
+        function_to_patch, [Patch("x = x + 10", "x = x + 20", "replace")]
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -382,7 +376,7 @@ def test_ast_patch_match_statement() -> None:
         return result
 
     res_ast_obj = ast_patch(
-        function_to_patch, 'result = "one"', 'result = "ONE"', mode="replace"
+        function_to_patch, [Patch('result = "one"', 'result = "ONE"', "replace")]
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -399,9 +393,7 @@ def test_ast_patch_insert_multiple_lines_before() -> None:
 
     res_ast_obj = ast_patch(
         function_to_patch,
-        "return x",
-        "x = x * 2\nx = x + 10",
-        mode="before",
+        [Patch("return x", "x = x * 2\nx = x + 10", "before")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -423,9 +415,7 @@ def test_ast_patch_insert_multiple_lines_after() -> None:
 
     res_ast_obj = ast_patch(
         function_to_patch,
-        "x = x + 5",
-        "x = x * 2\nx = x + 10",
-        mode="after",
+        [Patch("x = x + 5", "x = x * 2\nx = x + 10", "after")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -454,9 +444,7 @@ def test_ast_patch_complex_function() -> None:
 
     res_ast_obj = ast_patch(
         function_to_patch,
-        "total = total + item",
-        "total = total + item * 10",
-        mode="replace",
+        [Patch("total = total + item", "total = total + item * 10", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -474,9 +462,13 @@ def test_ast_patch_list_comprehension_in_body() -> None:
 
     res_ast_obj = ast_patch(
         function_to_patch,
-        "result = [x * 2 for x in items]",
-        "result = [x * 3 for x in items]",
-        mode="replace",
+        [
+            Patch(
+                "result = [x * 2 for x in items]",
+                "result = [x * 3 for x in items]",
+                "replace",
+            )
+        ],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -493,10 +485,223 @@ def test_ast_patch_lambda_in_body() -> None:
 
     res_ast_obj = ast_patch(
         function_to_patch,
-        "result = func(x)  # type: ignore",
-        "result = func(x) * 2",
-        mode="replace",
+        [Patch("result = func(x)  # type: ignore", "result = func(x) * 2", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
     assert "result = func(x) * 2" in res_str
+
+
+def test_multiple_patches_different_lines() -> None:
+    """Test applying multiple patches to different lines."""
+
+    def function_to_patch(x: int) -> int:
+        x = x + 10
+        x = x * 2
+        return x
+
+    res_ast_obj = ast_patch(
+        function_to_patch,
+        [
+            Patch("x = x + 10", "x = x + 20", "replace"),
+            Patch("x = x * 2", "x = x * 3", "replace"),
+        ],
+    )
+    res_str = ast.unparse(res_ast_obj)
+
+    assert (
+        res_str
+        == r"""def function_to_patch(x: int) -> int:
+    x = x + 20
+    x = x * 3
+    return x"""
+    )
+
+
+def test_multiple_patches_before_and_after_same_line() -> None:
+    """Test applying both before and after patches to the same line."""
+
+    def function_to_patch(x: int) -> int:
+        x = x + 10
+        return x
+
+    res_ast_obj = ast_patch(
+        function_to_patch,
+        [
+            Patch("x = x + 10", "print('before return')", "before"),
+            Patch("x = x + 10", "print('after return')", "after"),
+        ],
+    )
+    res_str = ast.unparse(res_ast_obj)
+
+    assert (
+        res_str
+        == r"""def function_to_patch(x: int) -> int:
+    print('before return')
+    x = x + 10
+    print('after return')
+    return x"""
+    )
+
+
+def test_multiple_patches_mixed_modes() -> None:
+    """Test applying patches with different modes to different lines."""
+
+    def function_to_patch(x: int, y: int) -> int:
+        x = x + 10
+        y = y * 2
+        result = x + y
+        return result
+
+    res_ast_obj = ast_patch(
+        function_to_patch,
+        [
+            Patch("x = x + 10", "print('processing x')", "before"),
+            Patch("y = y * 2", "y = y * 3", "replace"),
+            Patch("result = x + y", "print('result calculated')", "after"),
+        ],
+    )
+    res_str = ast.unparse(res_ast_obj)
+
+    assert (
+        res_str
+        == r"""def function_to_patch(x: int, y: int) -> int:
+    print('processing x')
+    x = x + 10
+    y = y * 3
+    result = x + y
+    print('result calculated')
+    return result"""
+    )
+
+
+def test_multiple_patches_with_default_mode() -> None:
+    """Test applying multiple patches with default 'before' mode."""
+
+    def function_to_patch(x: int) -> int:
+        x = x + 10
+        x = x * 2
+        return x
+
+    res_ast_obj = ast_patch(
+        function_to_patch,
+        [
+            Patch("x = x + 10", "print('before first')"),  # default mode='before'
+            Patch("x = x * 2", "print('before second')"),
+        ],
+    )
+    res_str = ast.unparse(res_ast_obj)
+
+    assert (
+        res_str
+        == r"""def function_to_patch(x: int) -> int:
+    print('before first')
+    x = x + 10
+    print('before second')
+    x = x * 2
+    return x"""
+    )
+
+
+def test_multiple_patches_error_duplicate_mode_same_line() -> None:
+    """Test error when multiple patches with same mode target the same line."""
+
+    def function_to_patch(x: int) -> int:
+        x = x + 10
+        return x
+
+    with pytest.raises(ValueError, match="Multiple 'before' patches on the same line"):
+        ast_patch(
+            function_to_patch,
+            [
+                Patch("x = x + 10", "print('first')", "before"),
+                Patch("x = x + 10", "print('second')", "before"),
+            ],
+        )
+
+
+def test_multiple_patches_error_replace_conflict() -> None:
+    """Test error when replace is combined with other modes on the same line."""
+
+    def function_to_patch(x: int) -> int:
+        x = x + 10
+        return x
+
+    with pytest.raises(ValueError, match="Cannot combine 'replace' with other modes"):
+        ast_patch(
+            function_to_patch,
+            [
+                Patch("x = x + 10", "x = x + 20", "replace"),
+                Patch("x = x + 10", "print('before')", "before"),
+            ],
+        )
+
+
+def test_multiple_patches_nested_and_toplevel() -> None:
+    """Test applying patches to both nested and top-level statements."""
+
+    def function_to_patch(x: int) -> int:
+        if x > 0:
+            x = x + 10
+        x = x * 2
+        return x
+
+    res_ast_obj = ast_patch(
+        function_to_patch,
+        [
+            Patch("x = x + 10", "x = x + 20", "after"),
+            Patch("x = x * 2", "x = x * 3", "replace"),
+            Patch("return x", "print('done')", "before"),
+        ],
+    )
+    res_str = ast.unparse(res_ast_obj)
+
+    assert (
+        res_str
+        == r"""def function_to_patch(x: int) -> int:
+    if x > 0:
+        x = x + 10
+        x = x + 20
+    x = x * 3
+    print('done')
+    return x"""
+    )
+
+
+def test_multiple_patches_many_lines() -> None:
+    """Test applying many patches to a larger function."""
+
+    def function_to_patch(items: list[int]) -> int:
+        total = 0
+        count = 0
+        for item in items:
+            if item > 0:
+                total = total + item
+                count = count + 1
+        return total
+
+    res_ast_obj = ast_patch(
+        function_to_patch,
+        [
+            Patch("total = 0", "print('initializing total')", "after"),
+            Patch("total = total + item", "total = total + item * 2", "replace"),
+            Patch("count = count + 1", "print(f'count: {count}')", "after"),
+            Patch("return total", "print(f'final total: {total}')", "before"),
+        ],
+    )
+    res_str = ast.unparse(res_ast_obj)
+
+    assert (
+        res_str
+        == r"""def function_to_patch(items: list[int]) -> int:
+    total = 0
+    print('initializing total')
+    count = 0
+    for item in items:
+        if item > 0:
+            total = total + item * 2
+            count = count + 1
+            print(f'count: {count}')
+    print(f'final total: {total}')
+    return total"""
+    )

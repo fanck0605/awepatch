@@ -1,37 +1,30 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from awepatch._version import __commit_id__, __version__, __version_tuple__
 from awepatch.utils import (
+    Patch,
     ast_patch,
     get_origin_function,
     load_function_code,
 )
 
 if TYPE_CHECKING:
-    import ast
-    import re
     from collections.abc import Callable, Iterator
 
 
 @contextmanager
 def patch_callable(
     func: Callable[..., Any],
-    pattern: str | re.Pattern[str],
-    repl: str | list[ast.stmt],
-    *,
-    mode: Literal["before", "after", "replace"] = "before",
+    patches: list[Patch],
 ) -> Iterator[None]:
     """Context manager to patch a callable's code object using AST manipulation.
 
     Args:
         func (Callable[..., Any]): The function to patch.
-        pattern (str | re.Pattern[str]): The pattern to search for in the AST.
-        repl (str | list[ast.stmt]): The replacement code or AST nodes.
-        mode (Literal["before", "after", "replace"], optional): The mode of patching.
-            Defaults to "before".
+        patches (list[Patch]): List of Patch objects for applying multiple patches.
 
     """
 
@@ -46,7 +39,7 @@ def patch_callable(
     raw_func_code = func.__code__
 
     # Patch the function's AST
-    patched_func_ast = ast_patch(raw_func_code, pattern, repl, mode=mode)
+    patched_func_ast = ast_patch(raw_func_code, patches)
     patched_func_code = load_function_code(patched_func_ast)
 
     # replace the function's code object
@@ -61,5 +54,6 @@ __all__ = (
     "__commit_id__",
     "__version__",
     "__version_tuple__",
+    "Patch",
     "patch_callable",
 )
