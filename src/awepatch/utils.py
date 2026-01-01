@@ -129,7 +129,7 @@ _awepatch_temp_dir = os.path.abspath(tempfile.mkdtemp(prefix="awepatch_"))
 
 
 def load_function_code(
-    func: ast.FunctionDef,
+    func: ast.FunctionDef | ast.AsyncFunctionDef,
     origin: str = "",
     temp_dir: str = _awepatch_temp_dir,
 ) -> CodeType:
@@ -343,7 +343,7 @@ def _compile_patches(
 def ast_patch(
     func: CodeType | FunctionType,
     patches: list[Patch],
-) -> ast.FunctionDef:
+) -> ast.FunctionDef | ast.AsyncFunctionDef:
     """Patch the AST of a function or code object.
 
     Args:
@@ -366,8 +366,8 @@ def ast_patch(
     if len(func_ast.body) != 1:
         raise ValueError("Only single function definitions are supported")
     func_ast = func_ast.body[0]  # type: ignore[assignment]
-    if not isinstance(func_ast, ast.FunctionDef):
-        raise ValueError("Only single function definitions are supported")
+    if not isinstance(func_ast, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        raise ValueError(f"Not a function definition: {type(func_ast)}")
 
     # 3. Clear decorators
     func_ast.decorator_list.clear()

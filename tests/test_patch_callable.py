@@ -233,3 +233,24 @@ def test_lambda_func() -> None:
         patch_callable(lambda_func, [Patch("x + 5", "x + 10", "replace")]),
     ):
         pass
+
+
+def test_patch_async_function() -> None:
+    import asyncio
+
+    async def async_function_to_patch(x: int) -> int:
+        x = x * 2
+        return x
+
+    original_result = asyncio.run(async_function_to_patch(5))
+    assert original_result == 10
+
+    with patch_callable(
+        async_function_to_patch,
+        [Patch("x = x * 2", "x = x * 3", "replace")],
+    ):
+        patched_result = asyncio.run(async_function_to_patch(5))
+        assert patched_result == 15
+
+    restored_result = asyncio.run(async_function_to_patch(5))
+    assert restored_result == original_result

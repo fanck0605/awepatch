@@ -814,3 +814,23 @@ def test_multiline_multiple_patches() -> None:
     x = x * 3
     return x"""
     )
+
+
+def test_async_function_patch() -> None:
+    """Test patching an async function."""
+
+    async def function_to_patch(x: int) -> int:
+        x = x + 10
+        return x
+
+    res_ast_obj = ast_patch(
+        function_to_patch, [Patch("x = x + 10", "x = x + 20", "replace")]
+    )
+    res_str = ast.unparse(res_ast_obj)
+
+    assert (
+        res_str
+        == r"""async def function_to_patch(x: int) -> int:
+    x = x + 20
+    return x"""
+    )
