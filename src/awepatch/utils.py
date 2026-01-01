@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import ast
-from collections import defaultdict
 import inspect
 import re
 import sys
+from collections import defaultdict
 from functools import partial
 from types import CodeType, FunctionType
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
