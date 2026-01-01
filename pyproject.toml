@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "awepatch"
 dynamic = ["version"]
-description = "Awesome Patch"
+description = "A Python library for runtime function patching using AST manipulation"
 readme = "README.md"
 authors = [
     { name = "Chuck Fan", email = "fanck0605@qq.com" }
