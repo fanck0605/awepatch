@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 @contextmanager
 def patch_callable(
     func: Callable[..., Any],
-    patches: list[Patch],
+    patches: Patch | list[Patch],
 ) -> Iterator[None]:
     """Context manager to patch a callable's code object using AST manipulation.
 
@@ -36,6 +36,7 @@ def patch_callable(
     if func.__name__ == "<lambda>":
         raise TypeError("Cannot patch lambda functions")
 
+    patches = patches if isinstance(patches, list) else [patches]
     raw_func_code = func.__code__
 
     # Patch the function's AST
