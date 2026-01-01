@@ -123,7 +123,7 @@ def test_get_source_lines_function() -> None:
 
     lines = get_source_lines(sample_function)
     assert len(lines) > 0
-    assert lines[0] == "def sample_function(x: int) -> int:"
+    assert lines[0] == "def sample_function(x: int) -> int:\n"
 
 
 def test_get_source_lines_nested_function() -> None:
