@@ -119,6 +119,95 @@ def load_function_code(func: ast.Module) -> CodeType:
     return func_code
 
 
+def _modify_ast_node(
+    ast_node: ast.AST,
+    target: int,
+    repl: list[ast.stmt],
+    mode: Literal["before", "after", "replace"],
+) -> bool:
+    """Find and modify the statement at the specified line number in the AST.
+
+    Args:
+        ast_node: The AST node to traverse
+        target: The target line number
+        repl: The list of replacement statements
+        mode: The modification mode (before/after/replace)
+
+    Returns:
+        True if the target statement was found and modified, False otherwise
+
+    """
+    for _, field in ast.iter_fields(ast_node):
+        if isinstance(field, list):
+            # Search for target statement in list fields
+            if _modify_ast_list(field, target, repl, mode):  # pyright: ignore[reportUnknownArgumentType]
+                return True
+        elif isinstance(field, ast.AST):  # noqa: SIM102
+            # Recursively process child nodes
+            if _modify_ast_node(field, target, repl, mode):
+                return True
+
+    return False
+
+
+def _modify_ast_list(
+    ast_list: list[Any],
+    target: int,
+    repl: list[ast.stmt],
+    mode: Literal["before", "after", "replace"],
+) -> bool:
+    """Find and modify the target statement in a list of statements.
+
+    Args:
+        ast_list: The list of AST statements
+        target: The target line number
+        repl: The list of replacement statements
+        mode: The modification mode (before/after/replace)
+
+    Returns:
+        True if the target statement was found and modified, False otherwise
+
+    """
+    for idx, item in enumerate(ast_list):
+        if not isinstance(item, ast.AST):
+            continue
+
+        # First recursively check child nodes
+        if _modify_ast_node(item, target, repl, mode):
+            return True
+
+        # Check if current statement matches target line number
+        if _is_target_stmt(item, target):
+            _insert_stmts(ast_list, idx, repl, mode)
+            return True
+
+    return False
+
+
+def _is_target_stmt(stmt: ast.AST, lineno: int) -> bool:
+    """Check if the statement contains the target line number."""
+    return (
+        isinstance(stmt, ast.stmt)
+        and stmt.end_lineno is not None
+        and stmt.lineno <= lineno <= stmt.end_lineno
+    )
+
+
+def _insert_stmts(
+    ast_list: list[Any],
+    idx: int,
+    stmts: list[ast.stmt],
+    mode: Literal["before", "after", "replace"],
+) -> None:
+    """Insert or replace statements at the specified position."""
+    if mode == "before":
+        ast_list[idx:idx] = stmts
+    elif mode == "after":
+        ast_list[idx + 1 : idx + 1] = stmts
+    elif mode == "replace":
+        ast_list[idx : idx + 1] = stmts
+
+
 def ast_patch(
     func: CodeType | FunctionType,
     pattern: str | re.Pattern[str],
@@ -139,59 +228,21 @@ def ast_patch(
         ast.Module: The modified AST module contains only one function definition.
 
     """
+    # 1. Get source code and target line number
     source_lines = get_source_lines(func)
     target_lineno = find_line_number(source_lines, pattern)
-    ast_code = ast.parse("".join(source_lines))
 
+    # 2. Parse AST and validate
+    ast_code = ast.parse("".join(source_lines))
     if len(ast_code.body) != 1 or not isinstance(ast_code.body[0], ast.FunctionDef):
         raise ValueError("Only single function definitions are supported")
-    ast_code.body[0].decorator_list.clear()
 
+    # 3. Clear decorators and prepare replacement statements
+    ast_code.body[0].decorator_list.clear()
     repl_stmts = load_stmts(repl) if isinstance(repl, str) else repl
 
-    def modify_ast_node(node: ast.AST) -> bool:
-        """Recursively traverse the AST to find and modify the target statement.
-
-        Returns:
-            True if a modification was made, False otherwise.
-
-        """
-        for _, field in ast.iter_fields(node):
-            if isinstance(field, list):
-                found = False
-                idx = 0
-                for idx, item in enumerate(field):  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType] # noqa: B007
-                    if isinstance(item, ast.AST):
-                        # First to modify child nodes, returning early if modified
-                        if modify_ast_node(item):
-                            return True
-                        # Then check if current node matches the lineno
-                        if (
-                            isinstance(item, ast.stmt)
-                            and item.end_lineno is not None
-                            and item.lineno <= target_lineno <= item.end_lineno
-                        ):
-                            found = True
-                            break
-                # only modify list field if a match was found
-                if found:
-                    if mode == "before":
-                        field[idx:idx] = repl_stmts
-                    elif mode == "after":
-                        field[idx + 1 : idx + 1] = repl_stmts
-                    elif mode == "replace":
-                        field[idx : idx + 1] = repl_stmts
-                    return True
-
-            elif isinstance(field, ast.AST):
-                # Recursively modify child nodes, but checking the current node
-                if modify_ast_node(field):
-                    return True
-
-        return False
-
-    modified = modify_ast_node(ast_code)
-    if not modified:
+    # 4. Find and modify the target statement in the AST
+    if not _modify_ast_node(ast_code, target_lineno, repl_stmts, mode):
         raise ValueError(f"No ast.stmt found for line number: {target_lineno}")
 
     return ast_code
