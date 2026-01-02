@@ -115,7 +115,7 @@ def test_ast_patch_one_line_decorator() -> None:
 
     assert (
         res_str
-        == r"""def function_to_patch(cls, x: int) -> int:
+        == r"""def function_to_patch(cls: Any, x: int) -> int:
     x = x + 20
     return x"""
     )
