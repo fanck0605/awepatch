@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import ast
 import re
+from typing import TYPE_CHECKING
 
 import pytest
 
 from awepatch.utils import find_line_number, get_source_lines, load_stmts
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def test_find_line_number_with_string() -> None:
@@ -129,7 +133,7 @@ def test_get_source_lines_function() -> None:
 def test_get_source_lines_nested_function() -> None:
     """Test getting source lines from a nested function."""
 
-    def outer():
+    def outer() -> Callable[[int], int]:
         def inner(x: int) -> int:
             return x * 2
 

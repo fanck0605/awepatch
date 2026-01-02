@@ -254,3 +254,83 @@ def test_patch_async_function() -> None:
 
     restored_result = asyncio.run(async_function_to_patch(5))
     assert restored_result == original_result
+
+
+def test_callable_patcher_basic() -> None:
+    """Test patch_callable basic functionality."""
+
+    def my_function(x: int) -> int:
+        return x + 1
+
+    patcher = patch_callable(
+        my_function, Patch("return x + 1", "return x + 2", "replace")
+    )
+
+    # Test before applying
+    assert my_function(3) == 4
+
+    # Apply patch
+    patched_func = patcher.apply()
+    assert patched_func(3) == 5
+    assert my_function(3) == 5  # Original function is also patched
+
+    # Restore
+    patcher.restore()
+    assert my_function(3) == 4
+
+
+def test_callable_patcher_context_manager() -> None:
+    """Test patch_callable as context manager."""
+
+    def my_function(x: int) -> int:
+        return x * 2
+
+    patcher = patch_callable(
+        my_function, Patch("return x * 2", "return x * 3", "replace")
+    )
+
+    assert my_function(4) == 8
+
+    with patcher:
+        assert my_function(4) == 12
+
+    assert my_function(4) == 8
+
+
+def test_callable_patcher_apply_restore_multiple_times() -> None:
+    """Test applying and restoring patches multiple times."""
+
+    def my_function(x: int) -> int:
+        return x + 5
+
+    patcher = patch_callable(
+        my_function, Patch("return x + 5", "return x + 10", "replace")
+    )
+
+    assert my_function(2) == 7
+
+    # Apply, restore, apply again
+    patcher.apply()
+    assert my_function(2) == 12
+
+    patcher.restore()
+    assert my_function(2) == 7
+
+    patcher.apply()
+    assert my_function(2) == 12
+
+    patcher.restore()
+    assert my_function(2) == 7
+
+
+def test_callable_patcher_invalid_patch() -> None:
+    """Test patch_callable with invalid patch."""
+
+    def my_function(x: int) -> int:
+        return x + 1
+
+    with pytest.raises(TypeError, match="patch must be a Patch or a list of Patch"):
+        patch_callable(my_function, "not a patch")  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError, match="patch must be a Patch or a list of Patch"):
+        patch_callable(my_function, [Patch("a", "b", "replace"), "not a patch"])  # type: ignore[list-item]

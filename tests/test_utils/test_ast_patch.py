@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import re
 from dataclasses import dataclass
+from typing import Any
 
 import pytest
 
@@ -102,7 +103,7 @@ def test_ast_patch_function_remove() -> None:
 
 def test_ast_patch_one_line_decorator() -> None:
     @classmethod
-    def function_to_patch(cls, x: int) -> int:  # type: ignore
+    def function_to_patch(cls: Any, x: int) -> int:  # type: ignore  # noqa: ANN401
         x = x + 10
         return x
 
