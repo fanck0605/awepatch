@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 from awepatch._version import __commit_id__, __version__, __version_tuple__
@@ -77,7 +78,30 @@ def _check_patches(patch: Any) -> list[Patch]:  # noqa: ANN401
         raise TypeError("patch must be a Patch or a list of Patch objects")
 
 
-class CallablePatcher:
+class CallablePatcher(ABC):
+    @abstractmethod
+    def apply(self) -> Callable[..., Any]:
+        """Apply the patches to the function."""
+
+    @abstractmethod
+    def restore(self) -> None:
+        """Restore the original function."""
+
+    def __enter__(self) -> Callable[..., Any]:
+        """Enter the context manager, applying the patches."""
+        return self.apply()
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException],
+        exc_value: BaseException,
+        traceback: TracebackType,
+    ) -> None:
+        """Exit the context manager, restoring the original function."""
+        self.restore()
+
+
+class _CallablePatcher(CallablePatcher):
     """A class for patching callables using AST manipulation."""
 
     def __init__(
@@ -112,19 +136,6 @@ class CallablePatcher:
         """Restore the original function."""
         self._func.__code__ = self._original_code
 
-    def __enter__(self) -> Callable[..., Any]:
-        """Enter the context manager, applying the patches."""
-        return self.apply()
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException],
-        exc_value: BaseException,
-        traceback: TracebackType,
-    ) -> None:
-        """Exit the context manager, restoring the original function."""
-        self.restore()
-
 
 def patch_callable(
     func: Callable[..., Any],
@@ -147,13 +158,14 @@ def patch_callable(
 
     """
 
-    return CallablePatcher(func, patch)
+    return _CallablePatcher(func, patch)
 
 
 __all__ = (
     "__commit_id__",
     "__version__",
     "__version_tuple__",
+    "CallablePatcher",
     "Patch",
     "patch_callable",
 )
