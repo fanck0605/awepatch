@@ -41,7 +41,7 @@ def test_ast_patch_function_dataclass() -> None:
         )
         return a
 
-    res_ast_obj = ast_patch(function_to_patch, [Patch("value=x,", "a = x", "after")])
+    res_ast_obj = ast_patch(function_to_patch, [Patch("a = Data(", "a = x", "after")])
     res_str = ast.unparse(res_ast_obj)
 
     assert (
@@ -70,9 +70,7 @@ def test_ast_patch_function_complex() -> None:
             )
         return ll
 
-    res_ast_obj = ast_patch(
-        function_to_patch, [Patch("value=x + i,", "a = x", "after")]
-    )
+    res_ast_obj = ast_patch(function_to_patch, [Patch("ll.append(", "a = x", "after")])
     res_str = ast.unparse(res_ast_obj)
 
     assert (
@@ -306,7 +304,7 @@ def test_ast_patch_error_pattern_not_found() -> None:
         x = x + 10
         return x
 
-    with pytest.raises(ValueError, match="No match found for pattern"):
+    with pytest.raises(ValueError, match="No match found for target pattern"):
         ast_patch(function_to_patch, [Patch("x = x + 999", "x = x + 20", "replace")])
 
 
@@ -318,7 +316,7 @@ def test_ast_patch_error_multiple_matches() -> None:
         x = x + 10
         return x
 
-    with pytest.raises(ValueError, match="Multiple matches found for pattern"):
+    with pytest.raises(ValueError, match="Multiple matches found for target pattern"):
         ast_patch(function_to_patch, [Patch("x = x + 10", "x = x + 20", "replace")])
 
 
@@ -685,7 +683,9 @@ def test_multiple_patches_error_duplicate_mode_same_line() -> None:
         x = x + 10
         return x
 
-    with pytest.raises(ValueError, match="Multiple 'before' patches on the same line"):
+    with pytest.raises(
+        ValueError, match="Multiple 'before' patches on the same target"
+    ):
         ast_patch(
             function_to_patch,
             [

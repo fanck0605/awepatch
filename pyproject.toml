@@ -71,6 +71,8 @@ select = [
     "FA",
     # flake8-type-checking
     "TC",
+    # flake8-annotations
+    "ANN",
 ]
 
 [tool.ruff.format]
