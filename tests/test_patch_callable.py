@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, ParamSpec, TypeVar
 import pytest
 
 from awepatch import Patch, patch_callable
+from awepatch.utils import Ident
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -381,3 +382,31 @@ def test_callable_patcher_invalid_patch() -> None:
 
     with pytest.raises(TypeError, match="patch must be a Patch or a list of Patch"):
         patch_callable(my_function, [Patch("a", "b", "replace"), "not a patch"])  # type: ignore[list-item]
+
+
+def test_match_on_identifier() -> None:
+    """Test matching on identifier."""
+
+    def function_to_patch(x: int) -> int:
+        x = x * 2
+        return x
+
+    absolute_lineno = function_to_patch.__code__.co_firstlineno + 1
+
+    for target in [
+        "x = x * 2",
+        Ident("+1", "x = x * 2"),
+        Ident(absolute_lineno, "x = x * 2"),
+    ]:
+        with patch_callable(
+            function_to_patch,
+            [
+                Patch(
+                    target=target,
+                    content="x = x * 3",
+                    mode="replace",
+                )
+            ],
+        ):
+            patched_result = function_to_patch(5)
+            assert patched_result == 15

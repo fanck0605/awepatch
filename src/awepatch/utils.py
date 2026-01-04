@@ -10,9 +10,10 @@ import sys
 import tempfile
 import threading
 from collections import defaultdict
+from dataclasses import dataclass
 from functools import partial
 from types import CodeType
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -20,18 +21,19 @@ if TYPE_CHECKING:
 Mode: TypeAlias = Literal["before", "after", "replace"]
 
 
-class Patch(NamedTuple):
+@dataclass(slots=True)
+class Patch:
     """A single patch operation.
 
     Attributes:
-        pattern: The pattern to search for in the source code.
-        repl: The replacement code or AST statements.
+        target: The pattern to search for in the source code.
+        content: The replacement code or AST statements.
         mode: The mode of patching (before/after/replace).
 
     """
 
-    trgt: str | re.Pattern[str] | tuple[str | re.Pattern[str], ...]
-    repl: str | Sequence[ast.stmt]
+    target: str | re.Pattern[str] | Ident | tuple[str | re.Pattern[str] | Ident, ...]
+    content: str | Sequence[ast.stmt]
     mode: Mode = "before"
 
 
@@ -154,17 +156,17 @@ def load_function_code(
 def _is_match_node(
     node: ast.AST,
     source: Sequence[str],
-    pattern: str | re.Pattern[str],
+    identifier: str | re.Pattern[str] | Ident,
 ) -> bool:
     """Check if the AST node matches the target pattern.
 
     Args:
         node: The AST node to check
         source: The source code lines
-        pattern: The target pattern
+        identifier: The target identifier or pattern
 
     Returns:
-        True if the AST node matches the target pattern, False otherwise
+        True if the AST node matches the target identifier, False otherwise
 
     """
     if not isinstance(node, ast.stmt):
@@ -172,6 +174,14 @@ def _is_match_node(
 
     node_lines = source[node.lineno - 1 : node.end_lineno]
     node_source = "".join(node_lines).lstrip()
+
+    if isinstance(identifier, Ident):
+        assert isinstance(identifier.lineno, int), "Line number must be an integer here"
+        if identifier.lineno != node.lineno:
+            return False
+        pattern = identifier.pattern
+    else:
+        pattern = identifier
 
     return bool(
         isinstance(pattern, str)
@@ -181,10 +191,24 @@ def _is_match_node(
     )
 
 
+@dataclass(slots=True)
+class Ident:
+    """Identifier for locating target AST nodes.
+
+    Attributes:
+        lineno: The line number of the target node, absolute or relative.
+        pattern: The pattern to match the source code of the target node.
+
+    """
+
+    lineno: int | str
+    pattern: str | re.Pattern[str]
+
+
 def _find_matched_node(
     node: ast.AST,
     source: Sequence[str],
-    target: tuple[str | re.Pattern[str], ...],
+    target: tuple[str | re.Pattern[str] | Ident, ...],
 ) -> tuple[ast.AST, str, int] | None:
     """Recursively find the target AST node matching the target patterns.
 
@@ -271,30 +295,71 @@ def _apply_stmts_patches(
     return i - index  # Total number of statements added
 
 
-def _check_targets(
-    target: str | re.Pattern[str] | tuple[str | re.Pattern[str], ...],
-) -> tuple[str | re.Pattern[str], ...]:
+def _check_identifier(
+    identifier: str | re.Pattern[str] | Ident,
+    firstlineno: int,
+) -> str | re.Pattern[str] | Ident:
+    """Check the identifier of a Patch object.
+
+    Args:
+        identifier: The target identifier to check.
+        firstlineno: The first line number of the function.
+
+    Returns:
+        The validated Identifier object.
+
+    Raises:
+        ValueError: If the identifier is invalid.
+
+    """
+    if isinstance(identifier, (str, re.Pattern)):
+        return identifier
+
+    if not isinstance(identifier, Ident):  # pyright: ignore[reportUnnecessaryIsInstance]
+        raise TypeError("Unknown identifier type")
+
+    if isinstance(identifier.lineno, int):
+        return identifier
+
+    if not isinstance(identifier.lineno, str):  # pyright: ignore[reportUnnecessaryIsInstance]
+        raise TypeError(
+            "Identifier lineno must be an integer or a positive digital like '+3'"
+        )
+
+    if identifier.lineno[0] == "+" and identifier.lineno[1:].isdigit():
+        identifier = Ident(
+            lineno=firstlineno + int(identifier.lineno[1:]),
+            pattern=identifier.pattern,
+        )
+        return identifier
+    else:
+        raise TypeError("Identifier lineno is not a valid relative lineno")
+
+
+def _check_identifiers(
+    identifiers: str
+    | re.Pattern[str]
+    | Ident
+    | tuple[str | re.Pattern[str] | Ident, ...],
+    firstlineno: int,
+) -> tuple[str | re.Pattern[str] | Ident, ...]:
     """Check the targets of a Patch object.
 
     Args:
-        target: The target pattern(s) to check.
+        identifiers: The identifier pattern(s) to check.
+        firstlineno: The first line number of the function.
 
     Raises:
-        ValueError: If the targets are invalid.
+        ValueError: If the identifiers are invalid.
 
     """
-    if not target:
+    if not identifiers:
         raise ValueError("Target pattern cannot be empty")
 
-    if isinstance(target, (str, re.Pattern)):
-        return (target,)
-    elif (
-        isinstance(target, tuple)  # pyright: ignore[reportUnnecessaryIsInstance]
-        and all(isinstance(t, (str, re.Pattern)) for t in target)  # pyright: ignore[reportUnnecessaryIsInstance]
-    ):
-        return target
+    if isinstance(identifiers, tuple):
+        return tuple(_check_identifier(idf, firstlineno) for idf in identifiers)
     else:
-        raise TypeError("Unknown target pattern type")
+        return (_check_identifier(identifiers, firstlineno),)
 
 
 def _compile_patches(
@@ -326,27 +391,30 @@ def _compile_patches(
         target = _find_matched_node(
             func,
             source,
-            _check_targets(patch.trgt),
+            _check_identifiers(patch.target, func.lineno),
         )
         if target is None:
-            raise ValueError(f"No match found for target pattern {patch.trgt!r}")
+            raise ValueError(f"No match found for target pattern {patch.target!r}")
 
         # Prepare replacement statements
         repl_stmts = (
-            load_stmts(patch.repl) if isinstance(patch.repl, str) else patch.repl
+            load_stmts(patch.content)
+            if isinstance(patch.content, str)
+            else patch.content
         )
 
         if target_patches := compiled_patches[target[:2]][target[2]]:
             # Check for duplicate mode on the same line
             if patch.mode in target_patches:
                 raise ValueError(
-                    f"Multiple '{patch.mode}' patches on the same target {patch.trgt!r}"
+                    f"Multiple '{patch.mode}' patches "
+                    f"on the same target {patch.target!r}"
                 )
             # Check for conflicting patches: replace cannot be combined with other modes
             if patch.mode == "replace" or "replace" in target_patches:
                 raise ValueError(
                     "Cannot combine 'replace' with other modes "
-                    f"on target {patch.trgt!r}"
+                    f"on target {patch.target!r}"
                 )
         target_patches[patch.mode] = repl_stmts
 
