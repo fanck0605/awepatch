@@ -31,9 +31,9 @@ def _get_patched_code(
 
     """
     # Patch the function's AST
-    patched_func_ast = ast_patch(func.__code__, patches)
+    patched_func_def = ast_patch(func.__code__, patches)
     patched_func_code = load_function_code(
-        patched_func_ast,
+        patched_func_def,
         origin=f"{func.__code__.co_filename}:{func.__code__.co_firstlineno}",
     )
     return patched_func_code

@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from awepatch.utils import Patch, ast_patch
+from awepatch.utils import Patch, ast_patch, get_origin_function
 
 
 def test_ast_patch_function() -> None:
@@ -106,7 +106,7 @@ def test_ast_patch_one_line_decorator() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch,
+        get_origin_function(function_to_patch),
         [Patch("x = x + 10", "x = x + 20", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
@@ -121,7 +121,9 @@ def test_ast_patch_one_line_decorator() -> None:
 
 def test_ast_patch_function_multi_line_decorator() -> None:
     @pytest.mark.skip(
-        reason="remove_decorators not implemented yet",
+        reason="""
+remove_decorators not implemented yet
+""",
     )
     def function_to_patch(x: int) -> int:
         x = x + 10

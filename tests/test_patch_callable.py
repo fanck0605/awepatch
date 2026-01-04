@@ -34,6 +34,30 @@ def test_patch_function_and_restore() -> None:
     assert restored_result == original_result
 
 
+_y_for_test = 1
+
+
+def test_patch_function_with_global() -> None:
+    def function_to_patch(x: int) -> int:
+        global _y_for_test
+        _y_for_test = x = x * 2
+        return x
+
+    with patch_callable(
+        function_to_patch,
+        [
+            Patch(
+                "_y_for_test = x = x * 2",
+                "_y_for_test = x = x * 3",
+                "replace",
+            )
+        ],
+    ):
+        patched_result = function_to_patch(5)
+        assert patched_result == 15
+        assert _y_for_test == 15
+
+
 def test_patch_function_mode() -> None:
     def fn() -> list[int]:
         a: list[int] = []
@@ -106,6 +130,29 @@ def test_patch_obj_method() -> None:
     obj = MyClass()
     with patch_callable(obj.method_to_patch, [Patch("z += 1", "z += 5", "replace")]):
         assert obj.method_to_patch(10) == 15
+
+
+def test_patch_obj_method_with_multiline_string() -> None:
+    """Test patching a method that contains a multi-line string."""
+
+    class MyClass:
+        def method_to_patch(self, z: str) -> str:
+            z = (
+                r"""
+Hello,
+
+    World!
+
+"""
+                + z
+            )
+            return z
+
+    obj = MyClass()
+    with patch_callable(
+        obj.method_to_patch, [Patch("z = (", "z = z.strip()", "before")]
+    ):
+        assert obj.method_to_patch(" Jack ") == "\nHello,\n\n    World!\n\nJack"
 
 
 def test_patch_class_method() -> None:

@@ -1,12 +1,8 @@
 from __future__ import annotations
 
 import ast
-from typing import TYPE_CHECKING
 
-from awepatch.utils import get_source_lines, load_stmts
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from awepatch.utils import load_stmts
 
 
 def test_load_stmts_single_statement() -> None:
@@ -70,45 +66,6 @@ class MyClass:
     assert len(stmts) == 1
     assert isinstance(stmts[0], ast.ClassDef)
     assert stmts[0].name == "MyClass"
-
-
-def test_get_source_lines_function() -> None:
-    """Test getting source lines from a function."""
-
-    def sample_function(x: int) -> int:
-        y = x + 10
-        return y
-
-    lines = get_source_lines(sample_function)
-    assert len(lines) > 0
-    assert lines[0] == "def sample_function(x: int) -> int:\n"
-
-
-def test_get_source_lines_nested_function() -> None:
-    """Test getting source lines from a nested function."""
-
-    def outer() -> Callable[[int], int]:
-        def inner(x: int) -> int:
-            return x * 2
-
-        return inner
-
-    inner_func = outer()
-    lines = get_source_lines(inner_func)
-    assert len(lines) > 0
-    assert "def inner" in lines[0]
-
-
-def test_get_source_lines_removes_common_indentation() -> None:
-    """Test that get_source_lines removes common leading indentation."""
-
-    class MyClass:
-        def method(self, x: int) -> int:
-            return x + 1
-
-    lines = get_source_lines(MyClass.method)
-    # First line should not have leading spaces
-    assert lines[0].startswith("def method")
 
 
 def test_load_stmts_empty_code() -> None:

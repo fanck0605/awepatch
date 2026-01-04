@@ -69,29 +69,6 @@ def load_stmts(code: str) -> list[ast.stmt]:
     return ast.parse(code).body
 
 
-def _remove_source_indent(lines: Sequence[str]) -> list[str]:
-    """Remove common leading indentation from code lines."""
-
-    indent = len(lines[0]) - len(lines[0].lstrip())
-    # for blank lines indent may be larger than line length, so we replace with '\n'
-    lines = [line[indent:] if len(line) > indent else "\n" for line in lines]
-    return lines
-
-
-def get_source_lines(
-    obj: CodeType | FunctionType,
-) -> list[str]:
-    """Get the source lines of a function or code object.
-
-    Args:
-        obj (CodeType | FunctionType): The function or code object to get the source
-          lines.
-
-    """
-    source_lines = inspect.getsourcelines(obj)[0]
-    return _remove_source_indent(source_lines)
-
-
 def _find_function_code(module: CodeType) -> CodeType:
     funcs = [
         func
@@ -194,7 +171,7 @@ def _is_match_node(
         return False
 
     node_lines = source[node.lineno - 1 : node.end_lineno]
-    node_source = "".join(_remove_source_indent(node_lines))
+    node_source = "".join(node_lines).lstrip()
 
     return bool(
         isinstance(pattern, str)
@@ -399,6 +376,38 @@ def _apply_compiled_patches(
             offset += _apply_stmts_patches(trgt_items, index + offset, patches)
 
 
+def _get_function_def(
+    func: CodeType, source: list[str]
+) -> ast.FunctionDef | ast.AsyncFunctionDef:
+    """Get the AST function definition from a code object.
+
+    Args:
+        func: The code object
+        source: The source code lines of the function
+
+    Returns:
+        The AST function definition
+
+    Raises:
+        ValueError: If the function definition is not found in the source
+
+    """
+
+    for node in ast.walk(ast.parse("".join(source))):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if node.name != func.co_name:
+            continue
+        node_lineno = (
+            node.decorator_list[0].lineno if node.decorator_list else node.lineno
+        )
+        if node_lineno != func.co_firstlineno:
+            continue
+        return node
+
+    raise ValueError("Function definition not found in source")
+
+
 def ast_patch(
     func: CodeType | FunctionType,
     patches: list[Patch],
@@ -417,24 +426,20 @@ def ast_patch(
     if not patches:
         raise ValueError("patches list cannot be empty")
 
-    # 1. Get source code
-    source = get_source_lines(func)
+    # 1. Get source lines
+    func = func.__code__ if not isinstance(func, CodeType) else func
+    source, _ = inspect.findsource(func)
 
-    # 2. Parse AST and validate
-    func_ast = ast.parse("".join(source))
-    if len(func_ast.body) != 1:
-        raise ValueError("Only single function definitions are supported")
-    func_ast = func_ast.body[0]  # type: ignore[assignment]
-    if not isinstance(func_ast, (ast.FunctionDef, ast.AsyncFunctionDef)):
-        raise ValueError(f"Not a function definition: {type(func_ast)}")
+    # 2. Get function definition AST node
+    func_def = _get_function_def(func, source)
 
     # 3. Clear decorators to get plain function code
-    func_ast.decorator_list.clear()
+    func_def.decorator_list.clear()
 
     # 4. Pre-compile all patches: find line numbers and prepare replacement statements
-    compiled_patches = _compile_patches(func_ast, source, patches)
+    compiled_patches = _compile_patches(func_def, source, patches)
 
     # 5. Apply all compiled patches to the AST
     _apply_compiled_patches(compiled_patches)
 
-    return func_ast
+    return func_def
