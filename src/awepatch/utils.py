@@ -11,7 +11,7 @@ import tempfile
 import threading
 from collections import defaultdict
 from functools import partial
-from types import CodeType, FunctionType
+from types import CodeType
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, TypeAlias
 
 if TYPE_CHECKING:
@@ -409,7 +409,7 @@ def _get_function_def(
 
 
 def ast_patch(
-    func: CodeType | FunctionType,
+    func: CodeType,
     patches: list[Patch],
 ) -> ast.FunctionDef | ast.AsyncFunctionDef:
     """Patch the AST of a function or code object.
@@ -427,7 +427,6 @@ def ast_patch(
         raise ValueError("patches list cannot be empty")
 
     # 1. Get source lines
-    func = func.__code__ if not isinstance(func, CodeType) else func
     source, _ = inspect.findsource(func)
 
     # 2. Get function definition AST node
