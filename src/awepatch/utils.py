@@ -100,7 +100,7 @@ def _get_awepatch_temp_dir() -> str:
         if _awepatch_temp_dir is not None:
             return _awepatch_temp_dir
 
-        _awepatch_temp_dir = tempfile.mkdtemp(prefix="awepatch-")
+        _awepatch_temp_dir = tempfile.mkdtemp(prefix=f"awepatch-{os.getpid()}-")
         if not _AWEPATCH_DEBUG:
             # Register cleanup at exit
             atexit.register(
