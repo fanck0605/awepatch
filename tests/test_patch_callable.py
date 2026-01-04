@@ -410,3 +410,44 @@ def test_match_on_identifier() -> None:
         ):
             patched_result = function_to_patch(5)
             assert patched_result == 15
+
+
+def test_matching_on_multiple_same_statements() -> None:
+    """Test matching on multiple same statements."""
+
+    def function_to_patch(x: int) -> int:
+        if x > 0:  # noqa: SIM108
+            x = x * 2
+        else:
+            x = x * 2
+        return x
+
+    with pytest.raises(ValueError, match="Multiple matches found for target pattern"):  # noqa: SIM117
+        with patch_callable(
+            function_to_patch,
+            [
+                Patch(
+                    target=("if x > 0:", "x = x * 2"),
+                    content="x = x * 3",
+                    mode="replace",
+                )
+            ],
+        ):
+            pass
+
+    with patch_callable(
+        function_to_patch,
+        [
+            Patch(
+                target=(
+                    "if x > 0:",
+                    # we specify the lineno to disambiguate the two same statements
+                    Ident("+2", "x = x * 2"),
+                ),
+                content="x = x * 3",
+                mode="replace",
+            )
+        ],
+    ):
+        assert function_to_patch(5) == 15
+        assert function_to_patch(-5) == -10

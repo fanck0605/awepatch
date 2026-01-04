@@ -148,7 +148,7 @@ def load_function_code(
             f.write(source)
         module_code = compile(source, filename=file_path, mode="exec")
     else:
-        module_code = compile(source, filename="<string>", mode="exec")
+        module_code = compile(source, filename="<awepatch>", mode="exec")
 
     func_code = _find_function_code(module_code)
     if func_code.co_name != func.name:
@@ -488,7 +488,7 @@ def ast_patch(
     """Patch the AST of a function or code object.
 
     Args:
-        func (CodeType | FunctionType): The function or code object to patch.
+        func (CodeType): The function or code object to patch.
         patches (list[Patch]): List of Patch objects for applying multiple patches.
 
     Returns:
