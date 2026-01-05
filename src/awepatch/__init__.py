@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from awepatch._version import __commit_id__, __version__, __version_tuple__
 from awepatch.utils import (
+    Ident,
     Patch,
     ast_patch,
     get_origin_function,
@@ -167,5 +168,6 @@ __all__ = (
     "__version_tuple__",
     "CallablePatcher",
     "Patch",
+    "Ident",
     "patch_callable",
 )
