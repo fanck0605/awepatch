@@ -27,7 +27,10 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     "Topic :: Utilities",
 ]
-dependencies = []
+dependencies = [
+    "filelock>=3.20.3",
+    "platformdirs>=4.5.1",
+]
 
 [dependency-groups]
 dev = [

@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 import pytest
 
-from awepatch import Patch, patch_callable
-from awepatch.utils import Ident
+from awepatch import patch_callable
+from awepatch.utils import Ident, Patch
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -318,8 +318,7 @@ def test_callable_patcher_basic() -> None:
     assert my_function(3) == 4
 
     # Apply patch
-    patched_func = patcher.apply()
-    assert patched_func(3) == 5
+    patcher.apply()
     assert my_function(3) == 5  # Original function is also patched
 
     # Restore
@@ -395,8 +394,8 @@ def test_match_on_identifier() -> None:
 
     for target in [
         "x = x * 2",
-        Ident("+1", "x = x * 2"),
-        Ident(absolute_lineno, "x = x * 2"),
+        Ident(lineno="+1", pattern="x = x * 2"),
+        Ident(lineno=absolute_lineno, pattern="x = x * 2"),
     ]:
         with patch_callable(
             function_to_patch,
@@ -442,7 +441,7 @@ def test_matching_on_multiple_same_statements() -> None:
                 target=(
                     "if x > 0:",
                     # we specify the lineno to disambiguate the two same statements
-                    Ident("+2", "x = x * 2"),
+                    Ident(lineno="+2", pattern="x = x * 2"),
                 ),
                 content="x = x * 3",
                 mode="replace",

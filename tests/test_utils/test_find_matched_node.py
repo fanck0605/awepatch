@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from awepatch.utils import _find_matched_node  # pyright: ignore[reportPrivateUsage]
+from awepatch.utils import CompiledIdent, find_matched_node
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -21,9 +21,10 @@ def test_find_matched_node_exact_string_match() -> None:
         "    return x + y\n",
     ]
     tree = ast.parse("".join(source))
-    matched = _find_matched_node(tree.body[0], source, ("x = 1",))
+    matched = find_matched_node(tree.body[0], source, (CompiledIdent("x = 1"),))
     assert matched is not None
-    assert ast.unparse(getattr(matched[0], matched[1])[matched[2]]) == "x = 1"
+    assert str(matched[0]) == "x = 1\ny = 2\nreturn x + y"
+    assert matched[1] == 0
 
 
 def test_find_matched_node_in_nested_block() -> None:
@@ -37,17 +38,20 @@ def test_find_matched_node_in_nested_block() -> None:
 """
 
     tree = ast.parse(source_code)
-    target = ("x = x * 3",)
+    target = CompiledIdent(
+        "x = x * 3",
+    )
     source_lines: Sequence[str] = source_code.splitlines(keepends=True)
 
-    matched = _find_matched_node(
+    matched = find_matched_node(
         tree.body[0],
         source_lines,
-        target,
+        (target,),
     )
 
     assert matched is not None
-    assert ast.unparse(getattr(matched[0], matched[1])[matched[2]]) == "x = x * 3"
+    assert str(matched[0]) == "x = x * 3"
+    assert matched[1] == 0
 
 
 def test_find_matched_node_with_context() -> None:
@@ -62,18 +66,18 @@ def test_find_matched_node_with_context() -> None:
 
     tree = ast.parse(source_code)
 
-    target = ("if x > 0:", "x = x * 2")
+    target = (CompiledIdent("if x > 0:"), CompiledIdent("x = x * 2"))
 
     source_lines: Sequence[str] = source_code.splitlines(keepends=True)
-    matched = _find_matched_node(
+    matched = find_matched_node(
         tree.body[0],
         source_lines,
         target,
     )
 
     assert matched is not None
-    assert ast.unparse(matched[0]) == "if x > 0:\n    x = x * 2"
-    assert ast.unparse(getattr(matched[0], matched[1])[matched[2]]) == "x = x * 2"
+    assert str(matched[0]) == "x = x * 2"
+    assert matched[1] == 0
 
 
 def test_find_matched_node_raises_on_ambiguous_match() -> None:
@@ -87,11 +91,11 @@ def test_find_matched_node_raises_on_ambiguous_match() -> None:
 """
 
     tree = ast.parse(source_code)
-    target = ("x = x * 2",)
+    target = (CompiledIdent("x = x * 2"),)
     source_lines: Sequence[str] = source_code.splitlines(keepends=True)
 
     with pytest.raises(ValueError, match="Multiple matches found for target pattern"):
-        _find_matched_node(
+        find_matched_node(
             tree.body[0],
             source_lines,
             target,
@@ -108,9 +112,10 @@ def test_find_matched_node_regex_pattern() -> None:
     ]
     pattern = re.compile(r"x = \d+")
     tree = ast.parse("".join(source))
-    matched = _find_matched_node(tree.body[0], source, (pattern,))
+    matched = find_matched_node(tree.body[0], source, (CompiledIdent(pattern),))
     assert matched is not None
-    assert ast.unparse(getattr(matched[0], matched[1])[matched[2]]) == "x = 1"
+    assert str(matched[0]) == "x = 1\ny = 2\nreturn x + y"
+    assert matched[1] == 0
 
 
 def test_find_matched_node_ignores_trailing_whitespace() -> None:
@@ -122,9 +127,10 @@ def test_find_matched_node_ignores_trailing_whitespace() -> None:
         "    return x + y\n",
     ]
     tree = ast.parse("".join(source))
-    matched = _find_matched_node(tree.body[0], source, ("x = 1",))
+    matched = find_matched_node(tree.body[0], source, (CompiledIdent("x = 1"),))
     assert matched is not None
-    assert ast.unparse(getattr(matched[0], matched[1])[matched[2]]) == "x = 1"
+    assert str(matched[0]) == "x = 1\ny = 2\nreturn x + y"
+    assert matched[1] == 0
 
 
 def test_find_matched_node_returns_none_when_not_found() -> None:
@@ -136,7 +142,7 @@ def test_find_matched_node_returns_none_when_not_found() -> None:
         "    return x + y\n",
     ]
     tree = ast.parse("".join(source))
-    matched = _find_matched_node(tree.body[0], source, ("z = 3",))
+    matched = find_matched_node(tree.body[0], source, (CompiledIdent("z = 3"),))
     assert matched is None
 
 
@@ -150,7 +156,7 @@ def test_find_matched_node_raises_on_duplicate_lines() -> None:
     ]
     tree = ast.parse("".join(source))
     with pytest.raises(ValueError, match="Multiple matches found for target pattern"):
-        _find_matched_node(tree.body[0], source, ("x = 1",))
+        find_matched_node(tree.body[0], source, (CompiledIdent("x = 1"),))
 
 
 def test_find_matched_node_complex_regex_pattern() -> None:
@@ -162,12 +168,10 @@ def test_find_matched_node_complex_regex_pattern() -> None:
     ]
     tree = ast.parse("".join(source))
     pattern = re.compile(r"result = calculate\(\d+,\s*\d+,\s*\d+\)")
-    matched = _find_matched_node(tree.body[0], source, (pattern,))
+    matched = find_matched_node(tree.body[0], source, (CompiledIdent(pattern),))
     assert matched is not None
-    assert (
-        ast.unparse(getattr(matched[0], matched[1])[matched[2]])
-        == "result = calculate(10, 20, 30)"
-    )
+    assert str(matched[0]) == "result = calculate(10, 20, 30)\nreturn result"
+    assert matched[1] == 0
 
 
 def test_find_matched_node_case_sensitive_matching() -> None:
@@ -178,5 +182,5 @@ def test_find_matched_node_case_sensitive_matching() -> None:
         "    return X\n",
     ]
     tree = ast.parse("".join(source))
-    matched = _find_matched_node(tree.body[0], source, ("x = 1",))
+    matched = find_matched_node(tree.body[0], source, (CompiledIdent("x = 1"),))
     assert matched is None
