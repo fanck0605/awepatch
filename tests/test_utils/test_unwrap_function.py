@@ -6,7 +6,7 @@ import functools
 import sys
 import unittest
 
-from awepatch.utils import get_origin_function
+from awepatch.function import _unwrap_function
 
 
 class NTimesUnwrappable:
@@ -29,7 +29,7 @@ class TestUnwrap(unittest.TestCase):
             return a + b
 
         wrapper = functools.lru_cache(maxsize=20)(func)
-        self.assertIs(get_origin_function(wrapper), func)
+        self.assertIs(_unwrap_function(wrapper), func)
 
     def test_unwrap_several(self):
         def func(a, b):
@@ -43,7 +43,7 @@ class TestUnwrap(unittest.TestCase):
                 pass
 
         self.assertIsNot(wrapper.__wrapped__, func)
-        self.assertIs(get_origin_function(wrapper), func)
+        self.assertIs(_unwrap_function(wrapper), func)
 
     def test_cycle(self):
         def func1():
@@ -51,7 +51,7 @@ class TestUnwrap(unittest.TestCase):
 
         func1.__wrapped__ = func1
         with self.assertRaisesRegex(ValueError, "wrapper loop"):
-            get_origin_function(func1)
+            _unwrap_function(func1)
 
         def func2():
             pass
@@ -59,9 +59,9 @@ class TestUnwrap(unittest.TestCase):
         func2.__wrapped__ = func1
         func1.__wrapped__ = func2
         with self.assertRaisesRegex(ValueError, "wrapper loop"):
-            get_origin_function(func1)
+            _unwrap_function(func1)
         with self.assertRaisesRegex(ValueError, "wrapper loop"):
-            get_origin_function(func2)
+            _unwrap_function(func2)
 
     def test_unhashable(self):
         def func():
@@ -73,16 +73,16 @@ class TestUnwrap(unittest.TestCase):
             __hash__ = None
             __wrapped__ = func
 
-        self.assertIsNone(get_origin_function(C()))
+        self.assertIsNone(_unwrap_function(C()))
 
     def test_recursion_limit(self):
         obj = NTimesUnwrappable(sys.getrecursionlimit() + 1)
         with self.assertRaisesRegex(ValueError, "wrapper loop"):
-            get_origin_function(obj)
+            _unwrap_function(obj)
 
     def test_wrapped_descriptor(self):
-        self.assertIs(get_origin_function(NTimesUnwrappable), NTimesUnwrappable)
-        self.assertIs(get_origin_function(staticmethod), staticmethod)
-        self.assertIs(get_origin_function(classmethod), classmethod)
-        self.assertIs(get_origin_function(staticmethod(classmethod)), classmethod)
-        self.assertIs(get_origin_function(classmethod(staticmethod)), staticmethod)
+        self.assertIs(_unwrap_function(NTimesUnwrappable), NTimesUnwrappable)
+        self.assertIs(_unwrap_function(staticmethod), staticmethod)
+        self.assertIs(_unwrap_function(classmethod), classmethod)
+        self.assertIs(_unwrap_function(staticmethod(classmethod)), classmethod)
+        self.assertIs(_unwrap_function(classmethod(staticmethod)), staticmethod)

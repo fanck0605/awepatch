@@ -1,13 +1,79 @@
 from __future__ import annotations
 
 import ast
+import inspect
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
 import pytest
 
-from awepatch.utils import Patch, ast_patch, get_origin_function
+from awepatch.function import _get_function_def, get_origin_function  # type: ignore
+from awepatch.utils import (
+    CompiledPatches,
+    Patch,
+    append_patch,
+    apply_compiled_patches,
+    compile_idents,
+    find_matched_node,
+    load_stmts,
+)
+
+TYPE_CHECKING = False
+
+if TYPE_CHECKING:
+    from types import CodeType
+
+
+def ast_patch(
+    func: CodeType,
+    patches: list[Patch],
+) -> ast.FunctionDef | ast.AsyncFunctionDef:
+    # Validate arguments
+    if not patches:
+        raise ValueError("patches list cannot be empty")
+
+    # 1. Get source lines
+    source, _ = inspect.findsource(func)
+
+    # 2. Get function definition AST node
+    func_def = _get_function_def(func, source)
+
+    # 3. Clear decorators to get plain function code
+    func_def.decorator_list.clear()
+
+    _patches: CompiledPatches = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(list))
+    )
+
+    for patch in patches:
+        # Get target line number
+        target_loc = find_matched_node(
+            func_def,
+            source,
+            compile_idents(patch.target, func_def.lineno),
+        )
+
+        if target_loc is None:
+            raise ValueError(f"No match found for target pattern {patch.target!r}")
+        # Prepare patch statements
+        patch_stmts = (
+            load_stmts(patch.content)
+            if isinstance(patch.content, str)
+            else patch.content
+        )
+
+        append_patch(
+            _patches,
+            target_loc,
+            patch_stmts,
+            patch.mode,
+        )
+
+    apply_compiled_patches(_patches)
+
+    return func_def
 
 
 def test_ast_patch_function() -> None:
@@ -16,7 +82,8 @@ def test_ast_patch_function() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch.__code__, [Patch("x = x + 10", "x = x + 20", "replace")]
+        function_to_patch.__code__,
+        [Patch("x = x + 10", "x = x + 20", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -106,7 +173,7 @@ def test_ast_patch_function_remove() -> None:
 
 
 def test_ast_patch_one_line_decorator() -> None:
-    @classmethod
+    @pytest.mark.skip
     def function_to_patch(cls: Any, x: int) -> int:  # type: ignore  # noqa: ANN401
         x = x + 10
         return x
@@ -221,7 +288,8 @@ def test_ast_patch_nested_statements() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch.__code__, [Patch("x = x + 10", "x = x + 20", "replace")]
+        function_to_patch.__code__,
+        [Patch("x = x + 10", "x = x + 20", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -245,7 +313,8 @@ def test_ast_patch_deeply_nested_statements() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch.__code__, [Patch("x = x + 5", "x = x + 10", "replace")]
+        function_to_patch.__code__,
+        [Patch("x = x + 5", "x = x + 10", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -314,7 +383,8 @@ def test_ast_patch_error_pattern_not_found() -> None:
 
     with pytest.raises(ValueError, match="No match found for target pattern"):
         ast_patch(
-            function_to_patch.__code__, [Patch("x = x + 999", "x = x + 20", "replace")]
+            function_to_patch.__code__,
+            [Patch("x = x + 999", "x = x + 20", "replace")],
         )
 
 
@@ -328,7 +398,8 @@ def test_ast_patch_error_multiple_matches() -> None:
 
     with pytest.raises(ValueError, match="Multiple matches found for target pattern"):
         ast_patch(
-            function_to_patch.__code__, [Patch("x = x + 10", "x = x + 20", "replace")]
+            function_to_patch.__code__,
+            [Patch("x = x + 10", "x = x + 20", "replace")],
         )
 
 
@@ -343,7 +414,8 @@ def test_ast_patch_with_try_except() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch.__code__, [Patch("x = x + 10", "x = x + 20", "replace")]
+        function_to_patch.__code__,
+        [Patch("x = x + 10", "x = x + 20", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -367,7 +439,8 @@ def test_ast_patch_with_context_manager() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch.__code__, [Patch("x = x + 10", "x = x + 20", "replace")]
+        function_to_patch.__code__,
+        [Patch("x = x + 10", "x = x + 20", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -436,7 +509,8 @@ def test_ast_patch_while_loop() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch.__code__, [Patch("x = x + 10", "x = x + 20", "replace")]
+        function_to_patch.__code__,
+        [Patch("x = x + 10", "x = x + 20", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 
@@ -696,16 +770,21 @@ def test_multiple_patches_error_duplicate_mode_same_line() -> None:
         x = x + 10
         return x
 
-    with pytest.raises(
-        ValueError, match="Multiple 'before' patches on the same target"
-    ):
-        ast_patch(
-            function_to_patch.__code__,
-            [
-                Patch("x = x + 10", "print('first')", "before"),
-                Patch("x = x + 10", "print('second')", "before"),
-            ],
-        )
+    ast_obj = ast_patch(
+        function_to_patch.__code__,
+        [
+            Patch("x = x + 10", "print('first')", "before"),
+            Patch("x = x + 10", "print('second')", "before"),
+        ],
+    )
+    assert (
+        ast.unparse(ast_obj)
+        == r"""def function_to_patch(x: int) -> int:
+    print('first')
+    print('second')
+    x = x + 10
+    return x"""
+    )
 
 
 def test_multiple_patches_error_replace_conflict() -> None:
@@ -715,14 +794,20 @@ def test_multiple_patches_error_replace_conflict() -> None:
         x = x + 10
         return x
 
-    with pytest.raises(ValueError, match="Cannot combine 'replace' with other modes"):
-        ast_patch(
-            function_to_patch.__code__,
-            [
-                Patch("x = x + 10", "x = x + 20", "replace"),
-                Patch("x = x + 10", "print('before')", "before"),
-            ],
-        )
+    ast_obj = ast_patch(
+        function_to_patch.__code__,
+        [
+            Patch("x = x + 10", "x = x + 20", "replace"),
+            Patch("x = x + 10", "print('before')", "before"),
+        ],
+    )
+    assert (
+        ast.unparse(ast_obj)
+        == r"""def function_to_patch(x: int) -> int:
+    print('before')
+    x = x + 20
+    return x"""
+    )
 
 
 def test_multiple_patches_nested_and_toplevel() -> None:
@@ -838,7 +923,8 @@ def test_async_function_patch() -> None:
         return x
 
     res_ast_obj = ast_patch(
-        function_to_patch.__code__, [Patch("x = x + 10", "x = x + 20", "replace")]
+        function_to_patch.__code__,
+        [Patch("x = x + 10", "x = x + 20", "replace")],
     )
     res_str = ast.unparse(res_ast_obj)
 

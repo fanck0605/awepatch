@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 from typing import TYPE_CHECKING
 
-from awepatch.utils import (
+from awepatch.function import (
     _get_function_def,  # pyright: ignore[reportPrivateUsage]
     load_function_code,
 )
