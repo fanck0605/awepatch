@@ -88,7 +88,7 @@ def load_function_code(
     source = ast.unparse(func)
 
     if AWEPATCH_DEBUG:
-        file_path = write_patched_source(
+        file_path, source = write_patched_source(
             source,
             name=func.name,
             type="function",

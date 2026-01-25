@@ -69,7 +69,7 @@ class _AwepatchSourceLoader(SourceLoader):
         apply_compiled_patches(compiled)
         source = ast.unparse(tree)
         if AWEPATCH_DEBUG:
-            self._path = write_patched_source(
+            self._path, source = write_patched_source(
                 source,
                 self._fullname.rsplit(".", 1)[-1],
                 "module",

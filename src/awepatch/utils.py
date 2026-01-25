@@ -369,7 +369,7 @@ def write_patched_source(
     name: str,
     type: str,
     origin: str = "",
-) -> str:
+) -> tuple[str, str]:
     """Load a function's code object from its AST module.
 
     Args:
@@ -394,4 +394,4 @@ def write_patched_source(
         if not os.path.exists(file_path):
             with open(file_path, "wb") as f:
                 f.write(bsource)
-    return file_path
+    return file_path, source
