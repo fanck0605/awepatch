@@ -19,7 +19,7 @@ from awepatch.utils import (
     compile_idents,
     find_matched_node,
     load_stmts,
-    write_patched_source,
+    persist_patched_source,
 )
 
 TYPE_CHECKING = False
@@ -51,9 +51,7 @@ class _AwepatchSourceLoader(SourceLoader):
             source = f.read()
         tree = ast.parse(source, filename=self._origin)
         slines = source.splitlines(keepends=True)
-        compiled: CompiledPatches = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(list))
-        )
+        compiled: CompiledPatches = defaultdict(lambda: defaultdict(dict))
         for patch in self._patches:
             target = find_matched_node(tree, slines, patch.target)
             if target is None:
@@ -69,7 +67,7 @@ class _AwepatchSourceLoader(SourceLoader):
         apply_compiled_patches(compiled)
         source = ast.unparse(tree)
         if AWEPATCH_DEBUG:
-            self._path, source = write_patched_source(
+            self._path, source = persist_patched_source(
                 source,
                 self._fullname.rsplit(".", 1)[-1],
                 "module",

@@ -8,7 +8,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from functools import partial
 from types import CodeType, TracebackType
-from typing import TYPE_CHECKING, Any, Self
+from typing import Any, Self
 
 from awepatch.utils import (
     AWEPATCH_DEBUG,
@@ -22,8 +22,10 @@ from awepatch.utils import (
     compile_idents,
     find_matched_node,
     load_stmts,
-    write_patched_source,
+    persist_patched_source,
 )
+
+TYPE_CHECKING = False
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -88,7 +90,7 @@ def load_function_code(
     source = ast.unparse(func)
 
     if AWEPATCH_DEBUG:
-        file_path, source = write_patched_source(
+        file_path, source = persist_patched_source(
             source,
             name=func.name,
             type="function",
@@ -107,13 +109,13 @@ def load_function_code(
 
 
 def _get_function_def(
-    func: CodeType, source: list[str]
+    func: CodeType, slines: list[str]
 ) -> ast.FunctionDef | ast.AsyncFunctionDef:
     """Get the AST function definition from a code object.
 
     Args:
         func: The code object
-        source: The source code lines of the function
+        slines: The source code lines of the function
 
     Returns:
         The AST function definition
@@ -123,7 +125,7 @@ def _get_function_def(
 
     """
 
-    for node in ast.walk(ast.parse("".join(source))):
+    for node in ast.walk(ast.parse("".join(slines))):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         if node.name != func.co_name:
@@ -161,8 +163,8 @@ class _SingleFunctionPatcher:
     def __init__(self, func: Callable[..., Any]) -> None:
         self._func = func
         self._orig_code = func.__code__
-        self._source, _ = inspect.findsource(func)
-        self._func_def = _get_function_def(func.__code__, self._source)
+        self._slines, _ = inspect.findsource(func)
+        self._func_def = _get_function_def(func.__code__, self._slines)
         self._func_def.decorator_list.clear()
         self._patches: list[CompiledPatch] = []
 
@@ -183,11 +185,9 @@ class _SingleFunctionPatcher:
     def apply(self) -> Callable[..., Any]:
         """Apply the patches to the function."""
         func_def = deepcopy(self._func_def)
-        compiled: CompiledPatches = defaultdict(
-            lambda: defaultdict(lambda: defaultdict(list))
-        )
+        compiled: CompiledPatches = defaultdict(lambda: defaultdict(dict))
         for patch in self._patches:
-            target = find_matched_node(func_def, self._source, patch.target)
+            target = find_matched_node(func_def, self._slines, patch.target)
             if target is None:
                 raise ValueError(f"Patch target {patch.target} not found")
             append_patch(
