@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import ast
 import sys
-import threading
 from collections import defaultdict
 from importlib.abc import MetaPathFinder, SourceLoader
+from importlib.machinery import PathFinder
 from typing import Self
 
 from awepatch.utils import (
@@ -33,12 +33,15 @@ if TYPE_CHECKING:
 
 class _AwepatchSourceLoader(SourceLoader):
     def __init__(
-        self, fullname: str, origin: str, patches: list[CompiledPatch]
+        self,
+        fullname: str,
+        origin: str,
+        patches: list[CompiledPatch],
     ) -> None:
         self._fullname = fullname
-        self._patches = patches
         self._origin = origin
         self._path = origin
+        self._patches = patches
 
     def get_filename(self, fullname: str) -> str:
         return self._origin
@@ -87,12 +90,6 @@ class _AwepatchSourceLoader(SourceLoader):
 
 
 class _AwepatchSpecFinder(MetaPathFinder):
-    # lock[0] is threading.Lock(), but initialized lazily to avoid importing threading
-    # very early at startup, because there are gevent-based applications that need to be
-    # first to import threading by themselves.
-    # See https://github.com/pypa/virtualenv/issues/1895 for details.
-    _lock: threading.Lock = threading.Lock()
-
     def __init__(self, patches: dict[str, list[CompiledPatch]]) -> None:
         super().__init__()
         self._patches = patches
@@ -105,23 +102,21 @@ class _AwepatchSpecFinder(MetaPathFinder):
         /,
     ) -> ModuleSpec | None:
         if fullname in self._patches:
-            from importlib.machinery import PathFinder
-
-            with _AwepatchSpecFinder._lock:
-                spec = PathFinder.find_spec(fullname, path, target)
-                if spec is not None and spec.origin is not None:
-                    spec.loader = _AwepatchSourceLoader(
-                        fullname,
-                        spec.origin,
-                        self._patches[fullname],
-                    )
-
-                    return spec
-
+            spec = PathFinder.find_spec(fullname, path, target)
+            if spec is not None and spec.origin is not None:
+                spec.loader = _AwepatchSourceLoader(
+                    fullname,
+                    spec.origin,
+                    self._patches[fullname],
+                )
+                return spec
         return None
 
 
 class ModulePatcher(AbstractPatcher):
+    # Module is not thread-safe for patching. Please ensure no other thread
+    # is importing the target module during patching.
+
     def __init__(self) -> None:
         self._patches: defaultdict[str, list[CompiledPatch]] = defaultdict(list)
         self._finder: _AwepatchSpecFinder | None = None
