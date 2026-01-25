@@ -149,15 +149,20 @@ class ModulePatcher(AbstractPatcher):
         for module in self._patches:
             if module in sys.modules:
                 import importlib
+                import warnings
 
+                warnings.warn(
+                    f"Module {module} is already imported before applying patches. "
+                    "Reloading the module to apply patches. "
+                    "The patches may not work as expected."
+                    "Also, if the module has side effects on import, "
+                    "those side effects will be triggered again upon reload.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
                 importlib.reload(sys.modules[module])
 
     def restore(self) -> None:
         if self._finder is not None:
             sys.meta_path.remove(self._finder)
             self._finder = None
-            for module in self._patches:
-                if module in sys.modules:
-                    import importlib
-
-                    importlib.reload(sys.modules[module])

@@ -8,6 +8,8 @@ from awepatch.module import ModulePatcher
 def test_module_patch_dataclass() -> None:
     from tests.test_module import module_for_test
 
+    importlib.reload(module_for_test)
+
     user = module_for_test.User(name="Alice", age=230)
     assert user.name == "Alice"
     assert user.age == 230
@@ -51,6 +53,8 @@ def greet(user: User) -> str:
 
 def test_module_patch_field() -> None:
     from tests.test_module import module_for_test
+
+    importlib.reload(module_for_test)
 
     user = module_for_test.User(name="Alice", age=230)
     assert user.name == "Alice"
