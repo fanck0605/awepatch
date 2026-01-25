@@ -773,22 +773,26 @@ def test_multiple_patches_error_duplicate_mode_same_line() -> None:
     ast_obj = ast_patch(
         function_to_patch.__code__,
         [
-            Patch("x = x + 10", "print('first')", "before"),
-            Patch("x = x + 10", "print('second')", "before"),
+            Patch("x = x + 10", "print('before1')", "before"),
+            Patch("x = x + 10", "print('before2')", "before"),
+            Patch("x = x + 10", "print('after1')", "after"),
+            Patch("x = x + 10", "print('after2')", "after"),
         ],
     )
     assert (
         ast.unparse(ast_obj)
         == r"""def function_to_patch(x: int) -> int:
-    print('first')
-    print('second')
+    print('before1')
+    print('before2')
     x = x + 10
+    print('after2')
+    print('after1')
     return x"""
     )
 
 
-def test_multiple_patches_error_replace_conflict() -> None:
-    """Test error when replace is combined with other modes on the same line."""
+def test_applying_both_before_and_replace() -> None:
+    """Test applying both before and replace patches to the same line."""
 
     def function_to_patch(x: int) -> int:
         x = x + 10

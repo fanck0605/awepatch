@@ -116,9 +116,9 @@ def append_patch(
             )
         patches[mode] = stmts
     elif mode == "before":
-        patches[mode] = [*stmts, *patches[mode]] if mode in patches else stmts
-    elif mode == "after":
         patches[mode] = [*patches[mode], *stmts] if mode in patches else stmts
+    elif mode == "after":
+        patches[mode] = [*stmts, *patches[mode]] if mode in patches else stmts
     else:
         raise ValueError(f"Unknown patch mode: {mode!r}")
 
