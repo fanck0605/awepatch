@@ -30,8 +30,8 @@ class Ident:
 
     """
 
-    _: KW_ONLY
     pattern: str | re.Pattern[str]
+    _: KW_ONLY
     lineno: int | str
 
 

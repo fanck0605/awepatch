@@ -37,190 +37,13 @@ uv pip install awepatch
 
 ## Quick Start
 
-### Basic Function Patching
-
-```python
-from awepatch import patch_callable, Patch
-
-def greet(name: str) -> str:
-    message = f"Hello, {name}!"
-    return message
-
-# Temporarily patch the function
-with patch_callable(
-    greet,
-    Patch('message = f"Hello, {name}!"', 'message = f"Hi there, {name}!"', "replace")
-):
-    print(greet("World"))  # Output: Hi there, World!
-
-# Function is automatically restored after context
-print(greet("World"))  # Output: Hello, World!
-```
-
-### Patch Modes
-
-`awepatch` supports three different patching modes:
-
-#### Replace Mode
-
-Replace existing code with new code:
-
-```python
-from awepatch import patch_callable, Patch
-
-def calculate(x: int) -> int:
-    x = x * 2
-    return x
-
-with patch_callable(calculate, Patch("x = x * 2", "x = x * 3", "replace")):
-    print(calculate(5))  # Output: 15
-```
-
-#### Before Mode
-
-Insert code before the matched statement:
-
-```python
-from awepatch import patch_callable, Patch
-
-def process() -> list[int]:
-    items: list[int] = []
-    items.append(3)
-    return items
-
-with patch_callable(process, Patch("items.append(3)", "items.append(1)", "before")):
-    print(process())  # Output: [1, 3]
-```
-
-#### After Mode
-
-Insert code after the matched statement:
-
-```python
-from awepatch import patch_callable, Patch
-
-def process() -> list[int]:
-    items: list[int] = []
-    items.append(3)
-    return items
-
-with patch_callable(process, Patch("items.append(3)", "items.append(5)", "after")):
-    print(process())  # Output: [3, 5]
-```
-
-### Patching Methods
-
-#### Instance Methods
-
-```python
-from awepatch import patch_callable, Patch
-
-class Calculator:
-    def add(self, x: int, y: int) -> int:
-        result = x + y
-        return result
-
-calc = Calculator()
-with patch_callable(calc.add, Patch("result = x + y", "result = x + y + 1", "replace")):
-    print(calc.add(2, 3))  # Output: 6
-```
-
-#### Class Methods
-
-```python
-from awepatch import patch_callable, Patch
-
-class MathUtils:
-    @classmethod
-    def multiply(cls, x: int, y: int) -> int:
-        result = x * y
-        return result
-
-with patch_callable(MathUtils.multiply, Patch("result = x * y", "result = x * y * 2", "replace")):
-    print(MathUtils.multiply(3, 4))  # Output: 24
-```
-
-#### Static Methods
-
-```python
-from awepatch import patch_callable, Patch
-
-class Helper:
-    @staticmethod
-    def format_name(name: str) -> str:
-        result = name.upper()
-        return result
-
-with patch_callable(Helper.format_name, Patch("result = name.upper()", "result = name.lower()", "replace")):
-    print(Helper.format_name("HELLO"))  # Output: hello
-```
-
-### Pattern Matching
-
-You can use both string literals and regular expressions for pattern matching:
+### Function Patching
 
 ```python
 import re
-from awepatch import patch_callable, Patch
 
-def process_data(value: int) -> int:
-    value = value + 10
-    return value
+from awepatch import FunctionPatcher
 
-# Using string pattern
-with patch_callable(process_data, Patch("value = value + 10", "value = value + 20", "replace")):
-    print(process_data(5))  # Output: 25
-
-# Using regex pattern
-with patch_callable(process_data, Patch(re.compile(r"value = value \+ \d+"), "value = value + 30", "replace")):
-    print(process_data(5))  # Output: 35
-```
-
-#### Nested Pattern Matching
-
-For complex nested structures, you can use tuple patterns to match nested AST nodes:
-
-```python
-from awepatch import patch_callable, Patch
-
-def nested_function(x: int) -> int:
-    if x > 0:
-        x = x * 2
-    return x
-
-# Match nested statement inside if block
-with patch_callable(
-    nested_function,
-    Patch(("if x > 0:", "x = x * 2"), "x = x * 3", "replace")
-):
-    print(nested_function(5))  # Output: 15
-```
-
-### Advanced Usage: AST Statements
-
-For more complex modifications, you can provide AST statements directly:
-
-```python
-import ast
-from awepatch import patch_callable, Patch
-
-def complex_function(x: int) -> int:
-    x = x * 2
-    return x
-
-# Parse replacement code as AST
-new_statements = ast.parse("x = x * 5").body
-
-with patch_callable(complex_function, Patch("x = x * 2", new_statements, "replace")):
-    print(complex_function(3))  # Output: 15
-```
-
-### Multiple Patches
-
-Apply multiple patches to a function in a single call:
-
-```python
-from awepatch import patch_callable, Patch
 
 def calculate(x: int, y: int) -> int:
     x = x + 10
@@ -228,37 +51,109 @@ def calculate(x: int, y: int) -> int:
     result = x + y
     return result
 
-# Apply multiple patches at once
-with patch_callable(
-    calculate,
-    [
-        Patch("x = x + 10", "print('processing x')", "before"),
-        Patch("y = y * 2", "y = y * 3", "replace"),
-        Patch("result = x + y", "print(f'result: {result}')", "after"),
-    ]
-):
-    print(calculate(5, 10))
-    # Output:
-    # processing x
-    # result: 45
-    # 45
 
-# You can also apply multiple patches to the same line (before/after modes)
-def process(x: int) -> int:
-    x = x + 10
+patcher = FunctionPatcher()
+patcher.add_patch(
+    calculate,
+    target="x = x + 10",
+    content="print(f'processing: {x=}')",
+    mode="before",
+)
+patcher.add_patch(
+    calculate,
+    target="y = y * 2",
+    content="y = y * 3",
+    mode="replace",
+)
+patcher.add_patch(
+    calculate,
+    target=re.compile(r"result = x \+ y"),
+    content="print(f'result: {result}')",
+    mode="after",
+)
+with patcher:
+    print(calculate(5, 10))
+
+# Output:
+# processing: x=5
+# result: 45
+# 45
+```
+
+### Module Patching
+
+```python
+# foo.py
+from dataclasses import dataclass
+
+@dataclass(slots=True)
+class User:
+    name: str
+    age: int
+
+def greet(user: User) -> str:
+    if hasattr(user, "gender"):
+        return f"Hello, {user.name}! You are {user.age} years old. Your gender is {user.gender}."
+    else:
+        return f"Hello, {user.name}! You are {user.age} years old."
+
+# example.py
+from awepatch.module import ModulePatcher
+
+patcher = ModulePatcher()
+patcher.add_patch(
+    "foo",
+    target=(
+        "class User:",
+        "age: int",
+    ),
+    content=""" 
+gender: str = "unspecified"
+""",
+    mode="after",
+)
+with patcher:
+    import foo
+    user = foo.User(name="Bob", age=25)
+    print(foo.greet(user))
+
+# Output: Hello, Bob! You are 25 years old. Your gender is unspecified.
+```
+
+### Nested Pattern Matching
+
+For complex nested structures, you can use tuple patterns or lineno offsets to match nested AST nodes:
+
+```python
+from awepatch import FunctionPatcher
+from awepatch.utils import Ident
+
+
+def nested_function(x: int) -> int:
+    if x > 0:
+        x = x * 2
+    x = x * 2
     return x
 
-with patch_callable(
-    process,
-    [
-        Patch("x = x + 10", "print('before')", "before"),
-        Patch("x = x + 10", "print('after')", "after"),
-    ]
+
+# Match nested statement inside if block
+with FunctionPatcher().add_patch(
+    nested_function,
+    target=("if x > 0:", "x = x * 2"),
+    content="x = x * 3",
+    mode="replace",
 ):
-    result = process(5)
-    # Output:
-    # before
-    # after
+    print(nested_function(5))  # Output: 30
+
+
+# Or match by line number offset
+with FunctionPatcher().add_patch(
+    nested_function,
+    target=Ident("x = x * 2", lineno="+2"),
+    content="x = x * 3",
+    mode="replace",
+):
+    print(nested_function(5))  # Output: 30
 ```
 
 ## Use Cases
@@ -276,96 +171,6 @@ with patch_callable(
 - Pattern matching must uniquely identify target statement(s) in the function
 - Only single function definitions are supported in the AST
 - Conflicting patches (e.g., combining 'replace' with 'before'/'after' on same target) are not allowed
-
-## API Reference
-
-### `Patch`
-
-```python
-class Patch(NamedTuple):
-    """A single patch operation.
-    
-    Attributes:
-        trgt: The pattern(s) to search for in the source code.
-              Can be a string, regex pattern, or tuple of patterns for nested matching.
-        repl: The replacement code (string) or AST statements (list).
-        mode: The mode of patching (before/after/replace), defaults to "before".
-    """
-    trgt: str | re.Pattern[str] | tuple[str | re.Pattern[str], ...]
-    repl: str | Sequence[ast.stmt]
-    mode: Literal["before", "after", "replace"] = "before"
-```
-
-### `patch_callable`
-
-```python
-def patch_callable(
-    func: Callable[..., Any],
-    /,
-    patch: Patch | list[Patch],
-) -> CallablePatcher:
-    """
-    Create a patcher for a callable's code object using AST manipulation.
-    
-    Can be used as a context manager or by calling apply()/restore() manually.
-
-    Args:
-        func: The function to patch.
-        patch: A single Patch or list of Patch objects for applying multiple patches.
-
-    Returns:
-        CallablePatcher: A patcher object that can be used as a context manager
-                        or manually controlled with apply() and restore().
-
-    Raises:
-        TypeError: If func is not callable or is a lambda function.
-        ValueError: If pattern is not found, matches multiple locations, or patches conflict.
-    """
-```
-
-### `CallablePatcher`
-
-```python
-class CallablePatcher:
-    """A patcher object for managing function patches."""
-    
-    def apply(self) -> Callable[..., Any]:
-        """Apply the patches to the function and return it."""
-    
-    def restore(self) -> None:
-        """Restore the original function."""
-    
-    def __enter__(self) -> Callable[..., Any]:
-        """Context manager entry - applies patches."""
-    
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        """Context manager exit - restores original function."""
-```
-
-### Using CallablePatcher
-
-```python
-from awepatch import patch_callable, Patch
-
-def my_function(x: int) -> int:
-    return x + 1
-
-# Create a patcher
-patcher = patch_callable(my_function, Patch("return x + 1", "return x + 2", "replace"))
-
-# Apply manually
-patcher.apply()
-print(my_function(3))  # Output: 5
-
-# Restore manually
-patcher.restore()
-print(my_function(3))  # Output: 4
-
-# Or use as context manager
-with patcher:
-    print(my_function(3))  # Output: 5
-print(my_function(3))  # Output: 4
-```
 
 ## Development
 

@@ -5,6 +5,7 @@ import sys
 import threading
 from collections import defaultdict
 from importlib.abc import MetaPathFinder, SourceLoader
+from typing import Self
 
 from awepatch.utils import (
     AWEPATCH_DEBUG,
@@ -132,7 +133,7 @@ class ModulePatcher(AbstractPatcher):
         target: IdentType | tuple[IdentType, ...],
         content: str | Sequence[ast.stmt],
         mode: Mode = "before",
-    ) -> None:
+    ) -> Self:
         self._patches[module].append(
             CompiledPatch(
                 target=compile_idents(target, 0),
@@ -140,6 +141,7 @@ class ModulePatcher(AbstractPatcher):
                 mode=mode,
             )
         )
+        return self
 
     def apply(self) -> None:
         self._finder = _AwepatchSpecFinder(self._patches)

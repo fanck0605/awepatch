@@ -8,7 +8,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from functools import partial
 from types import CodeType, TracebackType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 from awepatch.utils import (
     AWEPATCH_DEBUG,
@@ -220,7 +220,7 @@ class FunctionPatcher(AbstractPatcher):
         target: IdentType | tuple[IdentType, ...],
         content: str | Sequence[ast.stmt],
         mode: Mode = "before",
-    ) -> None:
+    ) -> Self:
         """Add a new patcher to the MultiPatcher.
 
         Args:
@@ -238,6 +238,7 @@ class FunctionPatcher(AbstractPatcher):
             self._func_patchers[id_func] = _SingleFunctionPatcher(func)
 
         self._func_patchers[id_func].add_patch(target, content, mode)
+        return self
 
     def apply(self) -> None:
         """Apply all patches to their respective functions."""
