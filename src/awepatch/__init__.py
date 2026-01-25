@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import Any, TypeAlias
 
 from awepatch._version import __commit_id__, __version__, __version_tuple__
 from awepatch.function import FunctionPatcher
 from awepatch.module import ModulePatcher
 from awepatch.utils import AbstractPatcher, Ident, Patch
+
+TYPE_CHECKING = False
 
 if TYPE_CHECKING:
     from collections.abc import Callable

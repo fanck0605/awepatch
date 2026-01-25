@@ -1,5 +1,7 @@
 # awepatch
 
+[English](https://github.com/fanck0605/awepatch/blob/main/README.md) | [中文](https://github.com/fanck0605/awepatch/blob/main/README_zh.md)
+
 **Awesome Patch** - A Python library for runtime function patching using AST manipulation.
 
 [![Build Status](https://github.com/fanck0605/awepatch/workflows/Build/badge.svg)](https://github.com/fanck0605/awepatch/actions/workflows/build.yml)
@@ -8,7 +10,7 @@
 
 ## Overview
 
-`awepatch` is a powerful Python library that allows you to dynamically patch callable objects at runtime by manipulating their Abstract Syntax Tree (AST). Unlike traditional monkey patching, `awepatch` modifies the actual code object of functions, providing a cleaner and more maintainable approach to runtime code modification.
+`awepatch` is a powerful Python library that allows you to dynamically patch source code at runtime by manipulating their Abstract Syntax Tree (AST). Unlike traditional monkey patching, `awepatch` modifies the actual code object of functions, providing a cleaner and more maintainable approach to runtime code modification.
 
 ## Features
 
@@ -16,10 +18,8 @@
 - 🎯 **AST-Based Manipulation**: Clean and precise code modifications using AST
 - 🔄 **Automatic Restoration**: Context manager support for temporary patches
 - 🎭 **Multiple Patch Modes**: Insert code before, after, or replace existing statements
-- 📦 **Batch Patching**: Apply multiple patches to a function in a single call
 - 🧩 **Pattern Matching**: Use string, regex, or tuple patterns to locate code to patch
 - 🎯 **Nested Matching**: Target nested code blocks with tuple pattern syntax
-- 🔄 **Manual Control**: Apply and restore patches manually with `CallablePatcher`
 - 🔗 **Decorator Support**: Works with decorated functions, class methods, and static methods
 - ⚡ **Type-Safe**: Full type hints support with strict type checking
 
