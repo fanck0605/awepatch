@@ -156,6 +156,38 @@ with FunctionPatcher().add_patch(
     print(nested_function(5))  # Output: 30
 ```
 
+## Advanced Usage
+
+### Patch for multi-process applications
+
+For applications that spawn multiple processes, you must use `ModulePatcher` to ensure that patches are applied in each child process.
+
+Use `.pth` file to auto-apply patches on module import in each process may be a good choice.
+
+```python
+# loader.py
+patcher = ModulePatcher()
+patcher.add_patch(
+    "foo",
+    target=(
+        "class User:",
+        "age: int",
+    ),
+    content 
+)
+patcher.apply()
+
+# xxx-awepatch.pth
+# xxx-awepatch.pth must be placed in site-packages directory
+import loader
+```
+
+See Also:
+
+<https://github.com/tox-dev/pre-commit-uv/blob/main/src/pre_commit_uv_patch.pth>
+<https://github.com/pypa/setuptools/blob/main/setup.py#L12>
+<https://github.com/jawah/urllib3.future/blob/main/urllib3_future.pth>
+
 ## Use Cases
 
 - **Testing**: Mock function behavior without complex mocking frameworks
