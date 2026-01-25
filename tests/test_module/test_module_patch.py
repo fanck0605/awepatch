@@ -37,7 +37,6 @@ def greet(user: User) -> str:
     )
     patcher.apply()
     try:
-        importlib.reload(module_for_test)
         patched_user = module_for_test.User(name="Bob", age=25)
         assert patched_user.name == "Bob"
         assert hasattr(patched_user, "gender")
