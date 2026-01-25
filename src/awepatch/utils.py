@@ -390,6 +390,8 @@ def write_patched_source(
 
     cache_dir = get_cache_dir()
     file_path = os.path.join(cache_dir, f"{type}_{name}_{crc32(bsource):010x}.py")
-    with FileLock(f"{file_path}.lock"), open(file_path, "wb") as f:
-        f.write(bsource)
+    with FileLock(f"{file_path}.lock"):
+        if not os.path.exists(file_path):
+            with open(file_path, "wb") as f:
+                f.write(bsource)
     return file_path
