@@ -7,6 +7,7 @@ from collections import defaultdict
 from importlib.abc import MetaPathFinder, SourceLoader
 
 from awepatch.utils import (
+    AWEPATCH_DEBUG,
     AbstractPatcher,
     CompiledPatch,
     CompiledPatches,
@@ -63,12 +64,15 @@ class _AwepatchSourceLoader(SourceLoader):
             )
         apply_compiled_patches(compiled)
         source = ast.unparse(tree)
-        self._path = write_patched_source(
-            source,
-            self._fullname.rsplit(".", 1)[-1],
-            "module",
-            origin=self._origin,
-        )
+        if AWEPATCH_DEBUG:
+            self._path = write_patched_source(
+                source,
+                self._fullname.rsplit(".", 1)[-1],
+                "module",
+                origin=self._origin,
+            )
+        else:
+            self._path = "<awepatch>"
         return source.encode("utf-8")
 
     def source_to_code(
@@ -140,7 +144,18 @@ class ModulePatcher(AbstractPatcher):
     def apply(self) -> None:
         self._finder = _AwepatchSpecFinder(self._patches)
         sys.meta_path.insert(0, self._finder)
+        for module in self._patches:
+            if module in sys.modules:
+                import importlib
+
+                importlib.reload(sys.modules[module])
 
     def restore(self) -> None:
         if self._finder is not None:
             sys.meta_path.remove(self._finder)
+            self._finder = None
+            for module in self._patches:
+                if module in sys.modules:
+                    import importlib
+
+                    importlib.reload(sys.modules[module])
