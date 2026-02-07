@@ -316,11 +316,11 @@ def apply_prepared_patches(prepared: PreparedPatches) -> None:
 class AbstractPatcher(ABC):
     @abstractmethod
     def apply(self) -> None:
-        """Apply the patches to the function."""
+        """Apply the patches."""
 
     @abstractmethod
     def restore(self) -> None:
-        """Restore the original function."""
+        """Restore the original code."""
 
     def __enter__(self) -> None:
         """Enter the context manager, applying the patches."""
@@ -332,7 +332,7 @@ class AbstractPatcher(ABC):
         exc_value: BaseException,
         traceback: TracebackType,
     ) -> None:
-        """Exit the context manager, restoring the original function."""
+        """Exit the context manager, restoring the original code."""
         self.restore()
 
 

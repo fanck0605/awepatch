@@ -7,7 +7,7 @@ import sys
 from collections import defaultdict
 from collections.abc import Callable
 from functools import partial
-from types import CodeType, TracebackType
+from types import CodeType
 
 from awepatch._utils import (
     AWEPATCH_DEBUG,
@@ -246,16 +246,3 @@ class FunctionPatcher(AbstractPatcher):
         """Restore all original functions."""
         for patcher in self._func_patchers.values():
             patcher.restore()
-
-    def __enter__(self) -> None:
-        """Enter the context manager, applying all patches."""
-        self.apply()
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_value: BaseException | None,
-        traceback: TracebackType | None,
-    ) -> None:
-        """Exit the context manager, restoring all original functions."""
-        self.restore()
