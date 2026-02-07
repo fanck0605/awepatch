@@ -67,48 +67,36 @@ class CompiledIdent:
     lineno: int | None = None
 
 
-@dataclass(slots=True)
-class CompiledPatch:
-    """A single patch operation.
-
-    Attributes:
-        target: The target pattern to search for in the source code.
-        patch: The patch code or AST statements.
-        mode: The mode of patching (before/after/replace).
-
-    """
-
-    target: tuple[CompiledIdent, ...]
-    stmts: Sequence[ast.stmt]
-    mode: Mode = "before"
+ASTLocation: TypeAlias = tuple[str | int, ...]
+CompiledPatches: TypeAlias = defaultdict[ASTLocation, dict[Mode, Sequence[ast.stmt]]]
 
 
 @dataclass(slots=True)
-class Location:
+class ASTList:
     field: list[Any]
 
     def __hash__(self) -> int:
         return id(self.field)
 
     def __eq__(self, value: object) -> bool:
-        return self.field is value.field if isinstance(value, Location) else False
+        return self.field is value.field if isinstance(value, ASTList) else False
 
     def __str__(self) -> str:
         return ast.unparse(ast.Module(body=self.field, type_ignores=[]))
 
 
-CompiledPatches: TypeAlias = defaultdict[
-    Location, defaultdict[int, dict[Mode, Sequence[ast.stmt]]]
+PreparedPatches: TypeAlias = defaultdict[
+    ASTList, defaultdict[int, dict[Mode, Sequence[ast.stmt]]]
 ]
 
 
 def append_patch(
-    complied: CompiledPatches,
-    target: tuple[Location, int],
+    compiled: CompiledPatches,
+    target: ASTLocation,
     stmts: Sequence[ast.stmt],
     mode: Mode,
 ) -> None:
-    patches = complied[target[0]][target[1]]
+    patches = compiled[target]
     if mode == "replace":
         if "replace" in patches:
             raise ValueError(
@@ -121,6 +109,20 @@ def append_patch(
         patches[mode] = [*stmts, *patches[mode]] if mode in patches else stmts
     else:
         raise ValueError(f"Unknown patch mode: {mode!r}")
+
+
+def prepare_patches(
+    compiled: CompiledPatches,
+    tree: ast.AST,
+) -> PreparedPatches:
+    prepared: PreparedPatches = defaultdict(lambda: defaultdict(dict))
+    for location, patch in compiled.items():
+        assert isinstance(location[-1], int)
+        target: Any = tree
+        for i in location[:-1]:
+            target = target[i] if isinstance(i, int) else getattr(target, i)
+        prepared[ASTList(target)][location[-1]] = patch
+    return prepared
 
 
 def load_stmts(code: str) -> list[ast.stmt]:
@@ -164,21 +166,23 @@ def find_matched_node(
     node: ast.AST,
     source: Sequence[str],
     target: tuple[CompiledIdent, ...],
-) -> tuple[Location, int] | None:
+    parent: ASTLocation = (),
+) -> ASTLocation | None:
     """Recursively find the target AST node matching the target patterns.
 
     Args:
         node: The AST node to search
         source: The source code lines
         target: The target patterns
+        parent: The location of the parent node (used for recursion)
 
     Returns:
         The AST node matching the target patterns, or None if not found
 
     """
-    matched: tuple[Location, int] | None = None
+    matched: ASTLocation | None = None
 
-    for _, field in ast.iter_fields(node):
+    for key, field in ast.iter_fields(node):
         if isinstance(field, list):
             field = cast("list[Any]", field)
             for index, item in enumerate(field):
@@ -187,11 +191,21 @@ def find_matched_node(
 
                 if _is_match_node(item, source, target[0]):
                     if len(target) == 1:
-                        tmp_matched = (Location(field), index)
+                        tmp_matched = parent + (key, index)
                     else:
-                        tmp_matched = find_matched_node(item, source, target[1:])
+                        tmp_matched = find_matched_node(
+                            item,
+                            source,
+                            target[1:],
+                            parent + (key, index),
+                        )
                 else:
-                    tmp_matched = find_matched_node(item, source, target)
+                    tmp_matched = find_matched_node(
+                        item,
+                        source,
+                        target,
+                        parent + (key, index),
+                    )
 
                 if tmp_matched is not None:
                     if matched is not None:
@@ -202,11 +216,13 @@ def find_matched_node(
 
         elif isinstance(field, ast.AST):
             if len(target) == 1:
-                tmp_matched = find_matched_node(field, source, target)
+                tmp_matched = find_matched_node(field, source, target, parent + (key,))
             elif _is_match_node(field, source, target[0]):
-                tmp_matched = find_matched_node(field, source, target[1:])
+                tmp_matched = find_matched_node(
+                    field, source, target[1:], parent + (key,)
+                )
             else:
-                tmp_matched = find_matched_node(field, source, target)
+                tmp_matched = find_matched_node(field, source, target, parent + (key,))
             if tmp_matched is not None:
                 if matched is not None:
                     raise ValueError(
@@ -296,19 +312,18 @@ def _apply_stmts_patches(
     return i - index  # Total number of statements added
 
 
-def apply_compiled_patches(compiled: CompiledPatches) -> None:
+def apply_prepared_patches(prepared: PreparedPatches) -> None:
     """Apply compiled patches to the AST function definition.
 
     Args:
-        tree: The AST function definition
-        compiled: Compiled patches mapping line numbers to mode-specific
+        prepared: Prepared patches mapping line numbers to mode-specific
           statements
 
     Returns:
         True if any patches were applied, False otherwise
 
     """
-    for location, index_patches in compiled.items():
+    for location, index_patches in prepared.items():
         offset = 0
         for index, patches in sorted(index_patches.items()):
             offset += _apply_stmts_patches(location.field, index + offset, patches)

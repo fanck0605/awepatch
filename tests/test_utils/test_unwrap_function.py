@@ -6,7 +6,7 @@ import functools
 import sys
 import unittest
 
-from awepatch.function import _unwrap_function
+from awepatch._function import _unwrap_function
 
 
 class NTimesUnwrappable:

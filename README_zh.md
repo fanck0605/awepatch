@@ -125,8 +125,7 @@ with patcher:
 对于复杂的嵌套结构，你可以使用元组模式或行号偏移来匹配嵌套的 AST 节点：
 
 ```python
-from awepatch import FunctionPatcher
-from awepatch.utils import Ident
+from awepatch import FunctionPatcher, Ident
 
 
 def nested_function(x: int) -> int:

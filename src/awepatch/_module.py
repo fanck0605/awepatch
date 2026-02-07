@@ -1,25 +1,27 @@
 from __future__ import annotations
 
 import ast
+import pickle
 import sys
 from collections import defaultdict
+from dataclasses import dataclass
 from importlib.abc import MetaPathFinder, SourceLoader
 from importlib.machinery import PathFinder
 from typing import Self
 
-from awepatch.utils import (
+from awepatch._utils import (
     AWEPATCH_DEBUG,
     AbstractPatcher,
-    CompiledPatch,
     CompiledPatches,
     IdentType,
     Mode,
     append_patch,
-    apply_compiled_patches,
+    apply_prepared_patches,
     compile_idents,
     find_matched_node,
     load_stmts,
     persist_patched_source,
+    prepare_patches,
 )
 
 TYPE_CHECKING = False
@@ -31,40 +33,35 @@ if TYPE_CHECKING:
     from types import CodeType, ModuleType
 
 
+@dataclass(slots=True)
+class ModuleInfo:
+    spec: ModuleSpec
+    tree: ast.AST
+    slines: Sequence[str]
+    patches: CompiledPatches
+
+
 class _AwepatchSourceLoader(SourceLoader):
     def __init__(
         self,
         fullname: str,
         origin: str,
-        patches: list[CompiledPatch],
+        patches: CompiledPatches,
+        pkl_tree: bytes,
     ) -> None:
         self._fullname = fullname
         self._origin = origin
         self._path = origin
         self._patches = patches
+        self._pkl_tree = pkl_tree
 
     def get_filename(self, fullname: str) -> str:
         return self._origin
 
     def get_data(self, path: str) -> bytes:
-        with open(path, encoding="utf-8") as f:
-            source = f.read()
-        tree = ast.parse(source, filename=self._origin)
-        slines = source.splitlines(keepends=True)
-        compiled: CompiledPatches = defaultdict(lambda: defaultdict(dict))
-        for patch in self._patches:
-            target = find_matched_node(tree, slines, patch.target)
-            if target is None:
-                raise ValueError(
-                    f"Patch target {patch.target} not found in {self._origin}"
-                )
-            append_patch(
-                compiled,
-                target,
-                patch.stmts,
-                patch.mode,
-            )
-        apply_compiled_patches(compiled)
+        tree = pickle.loads(self._pkl_tree)
+        prepared = prepare_patches(self._patches, tree)
+        apply_prepared_patches(prepared)
         source = ast.unparse(tree)
         if AWEPATCH_DEBUG:
             self._path, source = persist_patched_source(
@@ -88,9 +85,9 @@ class _AwepatchSourceLoader(SourceLoader):
 
 
 class _AwepatchSpecFinder(MetaPathFinder):
-    def __init__(self, patches: dict[str, list[CompiledPatch]]) -> None:
+    def __init__(self, modules: dict[str, ModuleSpec]) -> None:
         super().__init__()
-        self._patches = patches
+        self._modules = modules
 
     def find_spec(
         self,
@@ -99,16 +96,7 @@ class _AwepatchSpecFinder(MetaPathFinder):
         target: ModuleType | None = None,
         /,
     ) -> ModuleSpec | None:
-        if fullname in self._patches:
-            spec = PathFinder.find_spec(fullname, path, target)
-            if spec is not None and spec.origin is not None:
-                spec.loader = _AwepatchSourceLoader(
-                    fullname,
-                    spec.origin,
-                    self._patches[fullname],
-                )
-                return spec
-        return None
+        return self._modules.get(fullname, None)
 
 
 class ModulePatcher(AbstractPatcher):
@@ -116,8 +104,37 @@ class ModulePatcher(AbstractPatcher):
     # is importing the target module during patching.
 
     def __init__(self) -> None:
-        self._patches: defaultdict[str, list[CompiledPatch]] = defaultdict(list)
+        self._modules: dict[str, ModuleInfo] = {}
         self._finder: _AwepatchSpecFinder | None = None
+
+    def _get_module_info(self, module: str) -> ModuleInfo:
+        if (module_info := self._modules.get(module)) is not None:
+            return module_info
+
+        spec = PathFinder.find_spec(module, None, None)
+        if spec is None or spec.origin is None:
+            raise ValueError(f"Module {module} not found")
+
+        with open(spec.origin, encoding="utf-8") as f:
+            source = f.read()
+
+        tree = ast.parse(source, filename=spec.origin)
+        slines = source.splitlines(keepends=True)
+        patches: CompiledPatches = defaultdict(dict)
+        spec.loader = _AwepatchSourceLoader(
+            fullname=module,
+            origin=spec.origin,
+            patches=patches,
+            pkl_tree=pickle.dumps(tree),
+        )
+
+        module_info = self._modules[module] = ModuleInfo(
+            spec=spec,
+            tree=tree,
+            slines=slines,
+            patches=patches,
+        )
+        return module_info
 
     def add_patch(
         self,
@@ -127,33 +144,34 @@ class ModulePatcher(AbstractPatcher):
         content: str | Sequence[ast.stmt],
         mode: Mode = "before",
     ) -> Self:
-        self._patches[module].append(
-            CompiledPatch(
-                target=compile_idents(target, 0),
-                stmts=load_stmts(content) if isinstance(content, str) else content,
-                mode=mode,
-            )
+        module_info = self._get_module_info(module)
+        ident = compile_idents(target, 0)
+        location = find_matched_node(module_info.tree, module_info.slines, ident)
+        if location is None:
+            raise ValueError(f"Patch target {target} not found in {module}")
+        append_patch(
+            module_info.patches,
+            location,
+            load_stmts(content) if isinstance(content, str) else content,
+            mode,
         )
         return self
 
     def apply(self) -> None:
-        self._finder = _AwepatchSpecFinder(self._patches)
+        self._finder = _AwepatchSpecFinder(
+            {module: info.spec for module, info in self._modules.items()}
+        )
         sys.meta_path.insert(0, self._finder)
-        for module in self._patches:
+        for module in self._modules:
             if module in sys.modules:
-                import importlib
                 import warnings
 
                 warnings.warn(
-                    f"Module {module} is already imported before applying patches. "
-                    "Reloading the module to apply patches. "
-                    "The patches may not work as expected."
-                    "Also, if the module has side effects on import, "
-                    "those side effects will be triggered again upon reload.",
+                    f"Module {module} is already imported before applying patches, "
+                    "the patches may not work as expected!",
                     RuntimeWarning,
                     stacklevel=2,
                 )
-                importlib.reload(sys.modules[module])
 
     def restore(self) -> None:
         if self._finder is not None:

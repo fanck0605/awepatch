@@ -9,15 +9,16 @@ from typing import Any
 
 import pytest
 
-from awepatch.function import _get_function_def, get_origin_function  # type: ignore
-from awepatch.utils import (
+from awepatch._function import _get_function_def, get_origin_function  # type: ignore
+from awepatch._utils import (
     CompiledPatches,
     Patch,
     append_patch,
-    apply_compiled_patches,
+    apply_prepared_patches,
     compile_idents,
     find_matched_node,
     load_stmts,
+    prepare_patches,
 )
 
 TYPE_CHECKING = False
@@ -43,9 +44,7 @@ def ast_patch(
     # 3. Clear decorators to get plain function code
     func_def.decorator_list.clear()
 
-    _patches: CompiledPatches = defaultdict(
-        lambda: defaultdict(lambda: defaultdict(list))
-    )
+    _patches: CompiledPatches = defaultdict(dict)
 
     for patch in patches:
         # Get target line number
@@ -71,7 +70,8 @@ def ast_patch(
             patch.mode,
         )
 
-    apply_compiled_patches(_patches)
+    prepared = prepare_patches(_patches, func_def)
+    apply_prepared_patches(prepared)
 
     return func_def
 

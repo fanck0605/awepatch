@@ -125,8 +125,7 @@ with patcher:
 For complex nested structures, you can use tuple patterns or lineno offsets to match nested AST nodes:
 
 ```python
-from awepatch import FunctionPatcher
-from awepatch.utils import Ident
+from awepatch import FunctionPatcher, Ident
 
 
 def nested_function(x: int) -> int:

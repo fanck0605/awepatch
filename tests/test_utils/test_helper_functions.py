@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import ast
 
-from awepatch.utils import load_stmts
+from awepatch._utils import load_stmts
 
 
 def test_load_stmts_single_statement() -> None:

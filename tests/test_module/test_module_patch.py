@@ -2,7 +2,7 @@ import importlib
 
 import pytest
 
-from awepatch.module import ModulePatcher
+from awepatch._module import ModulePatcher
 
 
 def test_module_patch_dataclass() -> None:
@@ -38,6 +38,7 @@ def greet(user: User) -> str:
         mode="replace",
     )
     patcher.apply()
+    importlib.reload(module_for_test)
     try:
         patched_user = module_for_test.User(name="Bob", age=25)
         assert patched_user.name == "Bob"
@@ -49,6 +50,7 @@ def greet(user: User) -> str:
             module_for_test.greet(patched_user)
     finally:
         patcher.restore()
+        importlib.reload(module_for_test)
 
 
 def test_module_patch_field() -> None:
@@ -71,6 +73,7 @@ gender: str = "unspecified"
         mode="after",
     )
     patcher.apply()
+    importlib.reload(module_for_test)
     try:
         importlib.reload(module_for_test)
         patched_user = module_for_test.User(name="Bob", age=25)
@@ -81,3 +84,4 @@ gender: str = "unspecified"
         assert patched_user.gender == "unspecified"  # type: ignore
     finally:
         patcher.restore()
+        importlib.reload(module_for_test)

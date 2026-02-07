@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, ParamSpec, TypeVar
 import pytest
 
 from awepatch import patch_callable
-from awepatch.utils import Ident, Patch
+from awepatch._utils import Ident, Patch
 
 if TYPE_CHECKING:
     from collections.abc import Callable

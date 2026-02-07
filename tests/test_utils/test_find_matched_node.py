@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from awepatch.utils import CompiledIdent, find_matched_node
+from awepatch._utils import CompiledIdent, find_matched_node
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -22,9 +22,7 @@ def test_find_matched_node_exact_string_match() -> None:
     ]
     tree = ast.parse("".join(source))
     matched = find_matched_node(tree.body[0], source, (CompiledIdent("x = 1"),))
-    assert matched is not None
-    assert str(matched[0]) == "x = 1\ny = 2\nreturn x + y"
-    assert matched[1] == 0
+    assert matched == ("body", 0)
 
 
 def test_find_matched_node_in_nested_block() -> None:
@@ -49,9 +47,7 @@ def test_find_matched_node_in_nested_block() -> None:
         (target,),
     )
 
-    assert matched is not None
-    assert str(matched[0]) == "x = x * 3"
-    assert matched[1] == 0
+    assert matched == ("body", 0, "body", 0)
 
 
 def test_find_matched_node_with_context() -> None:
@@ -75,9 +71,7 @@ def test_find_matched_node_with_context() -> None:
         target,
     )
 
-    assert matched is not None
-    assert str(matched[0]) == "x = x * 2"
-    assert matched[1] == 0
+    assert matched == ("body", 0, "body", 0)
 
 
 def test_find_matched_node_raises_on_ambiguous_match() -> None:
@@ -113,9 +107,7 @@ def test_find_matched_node_regex_pattern() -> None:
     pattern = re.compile(r"x = \d+")
     tree = ast.parse("".join(source))
     matched = find_matched_node(tree.body[0], source, (CompiledIdent(pattern),))
-    assert matched is not None
-    assert str(matched[0]) == "x = 1\ny = 2\nreturn x + y"
-    assert matched[1] == 0
+    assert matched == ("body", 0)
 
 
 def test_find_matched_node_ignores_trailing_whitespace() -> None:
@@ -128,9 +120,7 @@ def test_find_matched_node_ignores_trailing_whitespace() -> None:
     ]
     tree = ast.parse("".join(source))
     matched = find_matched_node(tree.body[0], source, (CompiledIdent("x = 1"),))
-    assert matched is not None
-    assert str(matched[0]) == "x = 1\ny = 2\nreturn x + y"
-    assert matched[1] == 0
+    assert matched == ("body", 0)
 
 
 def test_find_matched_node_returns_none_when_not_found() -> None:
@@ -169,9 +159,7 @@ def test_find_matched_node_complex_regex_pattern() -> None:
     tree = ast.parse("".join(source))
     pattern = re.compile(r"result = calculate\(\d+,\s*\d+,\s*\d+\)")
     matched = find_matched_node(tree.body[0], source, (CompiledIdent(pattern),))
-    assert matched is not None
-    assert str(matched[0]) == "result = calculate(10, 20, 30)\nreturn result"
-    assert matched[1] == 0
+    assert matched == ("body", 0)
 
 
 def test_find_matched_node_case_sensitive_matching() -> None:

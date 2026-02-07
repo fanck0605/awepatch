@@ -2,27 +2,27 @@ from __future__ import annotations
 
 import ast
 import inspect
+import pickle
 import sys
 from collections import defaultdict
 from collections.abc import Callable
-from copy import deepcopy
 from functools import partial
 from types import CodeType, TracebackType
 from typing import Any, Self
 
-from awepatch.utils import (
+from awepatch._utils import (
     AWEPATCH_DEBUG,
     AbstractPatcher,
-    CompiledPatch,
     CompiledPatches,
     IdentType,
     Mode,
     append_patch,
-    apply_compiled_patches,
+    apply_prepared_patches,
     compile_idents,
     find_matched_node,
     load_stmts,
     persist_patched_source,
+    prepare_patches,
 )
 
 TYPE_CHECKING = False
@@ -166,7 +166,8 @@ class _SingleFunctionPatcher:
         self._slines, _ = inspect.findsource(func)
         self._func_def = _get_function_def(func.__code__, self._slines)
         self._func_def.decorator_list.clear()
-        self._patches: list[CompiledPatch] = []
+        self._patches: CompiledPatches = defaultdict(dict)
+        self._pkl_func_def = pickle.dumps(self._func_def)
 
     def add_patch(
         self,
@@ -174,29 +175,25 @@ class _SingleFunctionPatcher:
         content: str | Sequence[ast.stmt],
         mode: Mode = "before",
     ) -> None:
-        self._patches.append(
-            CompiledPatch(
-                target=compile_idents(target, self._func_def.lineno),
-                stmts=load_stmts(content) if isinstance(content, str) else content,
-                mode=mode,
-            )
+        ident = compile_idents(target, self._func_def.lineno)
+        stmts = load_stmts(content) if isinstance(content, str) else content
+
+        location = find_matched_node(self._func_def, self._slines, ident)
+        if location is None:
+            raise ValueError(f"Patch target {target} not found")
+
+        append_patch(
+            self._patches,
+            location,
+            stmts,
+            mode,
         )
 
     def apply(self) -> Callable[..., Any]:
         """Apply the patches to the function."""
-        func_def = deepcopy(self._func_def)
-        compiled: CompiledPatches = defaultdict(lambda: defaultdict(dict))
-        for patch in self._patches:
-            target = find_matched_node(func_def, self._slines, patch.target)
-            if target is None:
-                raise ValueError(f"Patch target {patch.target} not found")
-            append_patch(
-                compiled,
-                target,
-                patch.stmts,
-                patch.mode,
-            )
-        apply_compiled_patches(compiled)
+        func_def = pickle.loads(self._pkl_func_def)
+        prepared = prepare_patches(self._patches, func_def)
+        apply_prepared_patches(prepared)
         func_code = load_function_code(func_def, origin=repr(self._func))
         self._func.__code__ = func_code
         return self._func
