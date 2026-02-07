@@ -7,7 +7,6 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.abc import MetaPathFinder, SourceLoader
 from importlib.machinery import PathFinder
-from typing import Self
 
 from awepatch._utils import (
     AWEPATCH_DEBUG,
@@ -31,6 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Buffer, Sequence
     from importlib.machinery import ModuleSpec
     from types import CodeType, ModuleType
+    from typing import Self
 
 
 @dataclass(slots=True)

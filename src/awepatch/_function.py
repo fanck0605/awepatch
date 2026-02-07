@@ -8,7 +8,6 @@ from collections import defaultdict
 from collections.abc import Callable
 from functools import partial
 from types import CodeType, TracebackType
-from typing import Any, Self
 
 from awepatch._utils import (
     AWEPATCH_DEBUG,
@@ -29,6 +28,7 @@ TYPE_CHECKING = False
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+    from typing import Any, Self
 
 
 def _unwrap_function(func: Callable[..., Any]) -> Callable[..., Any]:
