@@ -37,22 +37,6 @@ Mode: TypeAlias = Literal["before", "after", "replace"]
 
 
 @dataclass(slots=True)
-class Patch:
-    """A single patch operation.
-
-    Attributes:
-        target: The target pattern to search for in the source code.
-        patch: The patch code or AST statements.
-        mode: The mode of patching (before/after/replace).
-
-    """
-
-    target: IdentType | tuple[IdentType, ...]
-    content: str | Sequence[ast.stmt]
-    mode: Mode = "before"
-
-
-@dataclass(slots=True)
 class CompiledIdent:
     """Compiled identifier for locating target AST nodes.
 

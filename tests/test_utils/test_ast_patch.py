@@ -12,7 +12,8 @@ import pytest
 from awepatch._function import _get_function_def, get_origin_function  # type: ignore
 from awepatch._utils import (
     CompiledPatches,
-    Patch,
+    IdentType,
+    Mode,
     append_patch,
     apply_prepared_patches,
     compile_idents,
@@ -24,7 +25,24 @@ from awepatch._utils import (
 TYPE_CHECKING = False
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from types import CodeType
+
+
+@dataclass(slots=True)
+class Patch:
+    """A single patch operation.
+
+    Attributes:
+        target: The target pattern to search for in the source code.
+        patch: The patch code or AST statements.
+        mode: The mode of patching (before/after/replace).
+
+    """
+
+    target: IdentType | tuple[IdentType, ...]
+    content: str | Sequence[ast.stmt]
+    mode: Mode = "before"
 
 
 def ast_patch(

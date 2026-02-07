@@ -6,8 +6,7 @@ from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 import pytest
 
-from awepatch import patch_callable
-from awepatch._utils import Ident, Patch
+from awepatch import FunctionPatcher, Ident
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -24,9 +23,11 @@ def test_patch_function_and_restore() -> None:
     original_result = function_to_patch(5)
     assert original_result == 10
 
-    with patch_callable(
+    with FunctionPatcher().add_patch(
         function_to_patch,
-        [Patch("x = x * 2", "x = x * 3", "replace")],
+        target="x = x * 2",
+        content="x = x * 3",
+        mode="replace",
     ):
         patched_result = function_to_patch(5)
         assert patched_result == 15
@@ -44,15 +45,11 @@ def test_patch_function_with_global() -> None:
         _y_for_test = x = x * 2
         return x
 
-    with patch_callable(
+    with FunctionPatcher().add_patch(
         function_to_patch,
-        [
-            Patch(
-                "_y_for_test = x = x * 2",
-                "_y_for_test = x = x * 3",
-                "replace",
-            )
-        ],
+        target="_y_for_test = x = x * 2",
+        content="_y_for_test = x = x * 3",
+        mode="replace",
     ):
         patched_result = function_to_patch(5)
         assert patched_result == 15
@@ -65,21 +62,27 @@ def test_patch_function_mode() -> None:
         a.append(3)
         return a
 
-    with patch_callable(
+    with FunctionPatcher().add_patch(
         fn,
-        [Patch("a.append(3)", "a.append(4)", "replace")],
+        target="a.append(3)",
+        content="a.append(4)",
+        mode="replace",
     ):
         assert fn() == [4]
 
-    with patch_callable(
+    with FunctionPatcher().add_patch(
         fn,
-        [Patch("a.append(3)", "a.append(4)", "before")],
+        target="a.append(3)",
+        content="a.append(4)",
+        mode="before",
     ):
         assert fn() == [4, 3]
 
-    with patch_callable(
+    with FunctionPatcher().add_patch(
         fn,
-        [Patch("a.append(3)", "a.append(4)", "after")],
+        target="a.append(3)",
+        content="a.append(4)",
+        mode="after",
     ):
         assert fn() == [3, 4]
 
@@ -102,9 +105,11 @@ def test_patch_function_with_blank_lines() -> None:
 """
     )
 
-    with patch_callable(
+    with FunctionPatcher().add_patch(
         fn,
-        [Patch("a.append(3)", "a.append(4)", "replace")],
+        target="a.append(3)",
+        content="a.append(4)",
+        mode="replace",
     ):
         assert fn() == [4]
 
@@ -115,8 +120,11 @@ def test_patch_method() -> None:
             z += 1
             return z
 
-    with patch_callable(
-        MyClass.method_to_patch, [Patch("z += 1", "z += 5", "replace")]
+    with FunctionPatcher().add_patch(
+        MyClass.method_to_patch,
+        target="z += 1",
+        content="z += 5",
+        mode="replace",
     ):
         obj = MyClass()
         assert obj.method_to_patch(10) == 15
@@ -129,7 +137,12 @@ def test_patch_obj_method() -> None:
             return z
 
     obj = MyClass()
-    with patch_callable(obj.method_to_patch, [Patch("z += 1", "z += 5", "replace")]):
+    with FunctionPatcher().add_patch(
+        obj.method_to_patch,
+        target="z += 1",
+        content="z += 5",
+        mode="replace",
+    ):
         assert obj.method_to_patch(10) == 15
 
 
@@ -150,8 +163,11 @@ Hello,
             return z
 
     obj = MyClass()
-    with patch_callable(
-        obj.method_to_patch, [Patch("z = (", "z = z.strip()", "before")]
+    with FunctionPatcher().add_patch(
+        obj.method_to_patch,
+        target="z = (",
+        content="z = z.strip()",
+        mode="before",
     ):
         assert obj.method_to_patch(" Jack ") == "\nHello,\n\n    World!\n\nJack"
 
@@ -163,8 +179,11 @@ def test_patch_class_method() -> None:
             z += 2
             return z
 
-    with patch_callable(
-        MyClass.class_method_to_patch, [Patch("z += 2", "z += 10", "replace")]
+    with FunctionPatcher().add_patch(
+        MyClass.class_method_to_patch,
+        target="z += 2",
+        content="z += 10",
+        mode="replace",
     ):
         assert MyClass.class_method_to_patch(10) == 20
 
@@ -176,8 +195,11 @@ def test_patch_static_method() -> None:
             z += 3
             return z
 
-    with patch_callable(
-        MyClass.static_method_to_patch, [Patch("z += 3", "z += 15", "replace")]
+    with FunctionPatcher().add_patch(
+        MyClass.static_method_to_patch,
+        target="z += 3",
+        content="z += 15",
+        mode="replace",
     ):
         assert MyClass.static_method_to_patch(10) == 25
 
@@ -190,8 +212,11 @@ def test_patch_partial_function() -> None:
 
     partial_func = partial(function_to_patch, 5)
 
-    with patch_callable(
-        partial_func, [Patch("return a + b", "return a * b", "replace")]
+    with FunctionPatcher().add_patch(
+        partial_func,
+        target="return a + b",
+        content="return a * b",
+        mode="replace",
     ):
         assert partial_func(3) == 15  # 5 * 3
 
@@ -209,7 +234,12 @@ def test_wrapper_function() -> None:
         x += 4
         return x
 
-    with patch_callable(function_to_patch, [Patch("x += 4", "x += 10", "replace")]):
+    with FunctionPatcher().add_patch(
+        function_to_patch,
+        target="x += 4",
+        content="x += 10",
+        mode="replace",
+    ):
         assert function_to_patch(6) == 16
 
 
@@ -232,7 +262,12 @@ def test_partialed_wrapped_class_method() -> None:
     method_to_patch = wrapper(method_to_patch)
 
     assert MyClass.method_to_patch_123(10) == 12
-    with patch_callable(method_to_patch, [Patch("z += 2", "z += 8", "replace")]):
+    with FunctionPatcher().add_patch(
+        method_to_patch,
+        target="z += 2",
+        content="z += 8",
+        mode="replace",
+    ):
         assert method_to_patch() == 18
 
 
@@ -252,8 +287,11 @@ def test_wrapper_and_and_partial_class_method() -> None:
             return z
 
     assert MyClass.method_to_patch(10) == 12
-    with patch_callable(
-        MyClass.method_to_patch, [Patch("z += 2", "z += 8", "replace")]
+    with FunctionPatcher().add_patch(
+        MyClass.method_to_patch,
+        target="z += 2",
+        content="z += 8",
+        mode="replace",
     ):
         assert MyClass.method_to_patch(10) == 18
 
@@ -267,7 +305,12 @@ def test_wrap_by_function() -> None:
 
     assert method_to_patch(10) == 12
 
-    with patch_callable(method_to_patch, [Patch("z += 2", "z += 8", "replace")]):
+    with FunctionPatcher().add_patch(
+        method_to_patch,
+        target="z += 2",
+        content="z += 8",
+        mode="replace",
+    ):
         assert method_to_patch(10) == 18
 
 
@@ -278,7 +321,12 @@ def test_lambda_func() -> None:
 
     with (
         pytest.raises(TypeError, match="Cannot patch lambda functions"),
-        patch_callable(lambda_func, [Patch("x + 5", "x + 10", "replace")]),
+        FunctionPatcher().add_patch(
+            lambda_func,
+            target="x + 5",
+            content="x + 10",
+            mode="replace",
+        ),
     ):
         pass
 
@@ -293,9 +341,11 @@ def test_patch_async_function() -> None:
     original_result = asyncio.run(async_function_to_patch(5))
     assert original_result == 10
 
-    with patch_callable(
+    with FunctionPatcher().add_patch(
         async_function_to_patch,
-        [Patch("x = x * 2", "x = x * 3", "replace")],
+        target="x = x * 2",
+        content="x = x * 3",
+        mode="replace",
     ):
         patched_result = asyncio.run(async_function_to_patch(5))
         assert patched_result == 15
@@ -310,8 +360,11 @@ def test_callable_patcher_basic() -> None:
     def my_function(x: int) -> int:
         return x + 1
 
-    patcher = patch_callable(
-        my_function, Patch("return x + 1", "return x + 2", "replace")
+    patcher = FunctionPatcher().add_patch(
+        my_function,
+        target="return x + 1",
+        content="return x + 2",
+        mode="replace",
     )
 
     # Test before applying
@@ -332,8 +385,11 @@ def test_callable_patcher_context_manager() -> None:
     def my_function(x: int) -> int:
         return x * 2
 
-    patcher = patch_callable(
-        my_function, Patch("return x * 2", "return x * 3", "replace")
+    patcher = FunctionPatcher().add_patch(
+        my_function,
+        target="return x * 2",
+        content="return x * 3",
+        mode="replace",
     )
 
     assert my_function(4) == 8
@@ -350,8 +406,11 @@ def test_callable_patcher_apply_restore_multiple_times() -> None:
     def my_function(x: int) -> int:
         return x + 5
 
-    patcher = patch_callable(
-        my_function, Patch("return x + 5", "return x + 10", "replace")
+    patcher = FunctionPatcher().add_patch(
+        my_function,
+        target="return x + 5",
+        content="return x + 10",
+        mode="replace",
     )
 
     assert my_function(2) == 7
@@ -370,19 +429,6 @@ def test_callable_patcher_apply_restore_multiple_times() -> None:
     assert my_function(2) == 7
 
 
-def test_callable_patcher_invalid_patch() -> None:
-    """Test patch_callable with invalid patch."""
-
-    def my_function(x: int) -> int:
-        return x + 1
-
-    with pytest.raises(TypeError, match="patch must be a Patch or a list of Patch"):
-        patch_callable(my_function, "not a patch")  # type: ignore[arg-type]
-
-    with pytest.raises(TypeError, match="patch must be a Patch or a list of Patch"):
-        patch_callable(my_function, [Patch("a", "b", "replace"), "not a patch"])  # type: ignore[list-item]
-
-
 def test_match_on_identifier() -> None:
     """Test matching on identifier."""
 
@@ -397,15 +443,11 @@ def test_match_on_identifier() -> None:
         Ident(lineno="+1", pattern="x = x * 2"),
         Ident(lineno=absolute_lineno, pattern="x = x * 2"),
     ]:
-        with patch_callable(
+        with FunctionPatcher().add_patch(
             function_to_patch,
-            [
-                Patch(
-                    target=target,
-                    content="x = x * 3",
-                    mode="replace",
-                )
-            ],
+            target=target,
+            content="x = x * 3",
+            mode="replace",
         ):
             patched_result = function_to_patch(5)
             assert patched_result == 15
@@ -422,31 +464,23 @@ def test_matching_on_multiple_same_statements() -> None:
         return x
 
     with pytest.raises(ValueError, match="Multiple matches found for target pattern"):  # noqa: SIM117
-        with patch_callable(
+        with FunctionPatcher().add_patch(
             function_to_patch,
-            [
-                Patch(
-                    target=("if x > 0:", "x = x * 2"),
-                    content="x = x * 3",
-                    mode="replace",
-                )
-            ],
+            target=("if x > 0:", "x = x * 2"),
+            content="x = x * 3",
+            mode="replace",
         ):
             pass
 
-    with patch_callable(
+    with FunctionPatcher().add_patch(
         function_to_patch,
-        [
-            Patch(
-                target=(
-                    "if x > 0:",
-                    # we specify the lineno to disambiguate the two same statements
-                    Ident(lineno="+2", pattern="x = x * 2"),
-                ),
-                content="x = x * 3",
-                mode="replace",
-            )
-        ],
+        target=(
+            "if x > 0:",
+            # we specify the lineno to disambiguate the two same statements
+            Ident(lineno="+2", pattern="x = x * 2"),
+        ),
+        content="x = x * 3",
+        mode="replace",
     ):
         assert function_to_patch(5) == 15
         assert function_to_patch(-5) == -10
