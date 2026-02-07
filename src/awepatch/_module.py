@@ -6,7 +6,7 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from importlib.abc import MetaPathFinder, SourceLoader
-from importlib.machinery import PathFinder
+from importlib.util import find_spec
 
 from awepatch._utils import (
     AWEPATCH_DEBUG,
@@ -111,7 +111,7 @@ class ModulePatcher(AbstractPatcher):
         if (module_info := self._modules.get(module)) is not None:
             return module_info
 
-        spec = PathFinder.find_spec(module, None, None)
+        spec = find_spec(module)
         if spec is None or spec.origin is None:
             raise ValueError(f"Module {module} not found")
 
