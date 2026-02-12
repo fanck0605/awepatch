@@ -6,7 +6,6 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from importlib.abc import MetaPathFinder, SourceLoader
-from importlib.util import find_spec
 
 from awepatch._utils import (
     AWEPATCH_DEBUG,
@@ -99,6 +98,32 @@ class _AwepatchSpecFinder(MetaPathFinder):
         return self._modules.get(fullname, None)
 
 
+def _find_spec(name: str) -> ModuleSpec | None:
+    """Find a module's spec."""
+    if name in sys.modules:
+        # The module is already imported, so we can skip the finders and just
+        # return the spec from sys.modules.
+        return sys.modules[name].__spec__
+
+    meta_path = sys.meta_path
+    if not meta_path:
+        import warnings
+
+        warnings.warn("sys.meta_path is empty", ImportWarning, stacklevel=2)
+
+    for finder in meta_path:
+        try:
+            find_spec = finder.find_spec
+        except AttributeError:
+            continue
+        else:
+            spec = find_spec(name, None)
+            if spec is not None:
+                return spec
+    else:
+        return None
+
+
 class ModulePatcher(AbstractPatcher):
     # Module is not thread-safe for patching. Please ensure no other thread
     # is importing the target module during patching.
@@ -111,7 +136,7 @@ class ModulePatcher(AbstractPatcher):
         if (module_info := self._modules.get(module)) is not None:
             return module_info
 
-        spec = find_spec(module)
+        spec = _find_spec(module)
         if spec is None or spec.origin is None:
             raise ValueError(f"Module {module} not found")
 
