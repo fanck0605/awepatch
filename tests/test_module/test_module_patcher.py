@@ -6,18 +6,9 @@ from awepatch._module import ModulePatcher
 
 
 def test_module_patch_dataclass() -> None:
-    from tests.test_module import module_for_test
-
-    importlib.reload(module_for_test)
-
-    user = module_for_test.User(name="Alice", age=230)
-    assert user.name == "Alice"
-    assert user.age == 230
-    assert not hasattr(user, "gender")
-
     patcher = ModulePatcher()
     patcher.add_patch(
-        "tests.test_module.module_for_test",
+        "tests.test_module.nested.module_for_test",
         target="class User:",
         content=""" 
 @dataclass
@@ -29,7 +20,7 @@ class User:
         mode="replace",
     )
     patcher.add_patch(
-        "tests.test_module.module_for_test",
+        "tests.test_module.nested.module_for_test",
         target="def greet(user: User) -> str:",
         content=""" 
 def greet(user: User) -> str:
@@ -38,6 +29,8 @@ def greet(user: User) -> str:
         mode="replace",
     )
     patcher.apply()
+    from tests.test_module.nested import module_for_test
+
     importlib.reload(module_for_test)
     try:
         patched_user = module_for_test.User(name="Bob", age=25)
@@ -54,18 +47,9 @@ def greet(user: User) -> str:
 
 
 def test_module_patch_field() -> None:
-    from tests.test_module import module_for_test
-
-    importlib.reload(module_for_test)
-
-    user = module_for_test.User(name="Alice", age=230)
-    assert user.name == "Alice"
-    assert user.age == 230
-    assert not hasattr(user, "gender")
-
     patcher = ModulePatcher()
     patcher.add_patch(
-        "tests.test_module.module_for_test",
+        "tests.test_module.nested.module_for_test",
         target=("class User:", "age: int"),
         content=""" 
 gender: str = "unspecified"
@@ -73,6 +57,8 @@ gender: str = "unspecified"
         mode="after",
     )
     patcher.apply()
+    from tests.test_module.nested import module_for_test
+
     importlib.reload(module_for_test)
     try:
         importlib.reload(module_for_test)

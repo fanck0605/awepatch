@@ -99,7 +99,11 @@ class _AwepatchSpecFinder(MetaPathFinder):
 
 
 def _find_spec(name: str) -> ModuleSpec | None:
-    """Find a module's spec."""
+    """Find a module's spec without importing it.
+
+    For nested modules like 'a.b.c', we need to find the parent's spec first
+    to get the search path, but we don't import the parent.
+    """
     if name in sys.modules:
         # The module is already imported, so we can skip the finders and just
         # return the spec from sys.modules.
@@ -111,13 +115,22 @@ def _find_spec(name: str) -> ModuleSpec | None:
 
         warnings.warn("sys.meta_path is empty", ImportWarning, stacklevel=2)
 
+    # For nested modules, we need to find the parent spec first
+    path = None
+    parent_name = name.rpartition(".")[0]
+    if parent_name:
+        parent_spec = _find_spec(parent_name)
+        if parent_spec is None:
+            return None
+        path = parent_spec.submodule_search_locations
+
     for finder in meta_path:
         try:
             find_spec = finder.find_spec
         except AttributeError:
             continue
         else:
-            spec = find_spec(name, None)
+            spec = find_spec(name, path)
             if spec is not None:
                 return spec
     else:
